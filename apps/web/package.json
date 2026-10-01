@@ -1,0 +1,31 @@
+{
+  "name": "sceneweaver-web",
+  "private": true,
+  "version": "0.1.0-alpha.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build --configLoader runner",
+    "build:game": "tsc --noEmit && vite build --mode game --configLoader runner",
+    "test": "node tests/stage-transform.mjs && node tests/story-graph-commands.mjs && node tests/audio-preparation.mjs && node tests/voice-queue.mjs && node tests/trace-scope.mjs && node tests/backstage-placement.mjs && node tests/scene-preview-locations.mjs && node tests/stage-reading.mjs && node tests/item-handoff.mjs && node tests/reading-progress.mjs && node tests/reading-store.mjs && node tests/item-feedback.mjs && node tests/request-recovery.mjs && node tests/outfit-model.mjs && node tests/studio-authoring.mjs && node tests/performance-lanes.mjs && node tests/game-bundle.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/*.mjs\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/*.mjs\""
+  },
+  "dependencies": {
+    "@xyflow/react": "12.11.6",
+    "lucide-react": "^0.577.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "prettier": "3.9.6",
+    "typescript": "^5.9.0",
+    "vite": "^8.2.2"
+  }
+}

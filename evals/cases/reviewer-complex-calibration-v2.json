@@ -1,0 +1,116 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-complex-calibration-v2",
+  "version": 2,
+  "scope": "clarified mixed-recipient pair derived after v1 confound; synthetic development calibration, not held out",
+  "defaults": {
+    "info": {
+      "profile": {
+        "name": "沈知",
+        "core": "你是成年档案管理员，做事谨慎，不把传闻冒充结论。",
+        "world": "虚构档案室"
+      },
+      "observations": [
+        {
+          "id": "heard_box",
+          "kind": "speech",
+          "text": "盒子在楼上，但我还没确认。",
+          "actor_id": null,
+          "speaker": "未辨认的声音"
+        },
+        {
+          "id": "witnessed_seal",
+          "kind": "host",
+          "text": "沈知亲眼看见黎安把封条放在桌面上。",
+          "detail": {
+            "basis": "witnessed"
+          }
+        },
+        {
+          "id": "comparison_agreement",
+          "kind": "host",
+          "text": "沈知与黎安只同意比较纸质与电子两套登记方案。",
+          "detail": {
+            "basis": "confirmed"
+          }
+        }
+      ],
+      "scene_facts": {
+        "key_exists": {
+          "event_id": "key_exists",
+          "value": "档案室确有一把黄铜钥匙。",
+          "basis": "confirmed"
+        }
+      },
+      "known_objects": [
+        {
+          "name": "黄铜钥匙",
+          "known": "确认存在，位置和持有者未知"
+        }
+      ],
+      "active_goals": {
+        "goal": "沈知希望核对交接记录，并建议在双方决定后记录最终方案。"
+      }
+    },
+    "sources": {
+      "heard_box": "盒子在楼上，但我还没确认。",
+      "witnessed_seal": "沈知亲眼看见黎安把封条放在桌面上。",
+      "comparison_agreement": "沈知与黎安只同意比较纸质与电子两套登记方案。",
+      "key_exists": "档案室确有一把黄铜钥匙。",
+      "goal": "沈知希望核对交接记录，并建议在双方决定后记录最终方案。"
+    },
+    "intent": {
+      "act": "speak",
+      "deception": false,
+      "addressee_id": "peer"
+    },
+    "cast": [
+      {
+        "id": "npc",
+        "name": "沈知"
+      },
+      {
+        "id": "peer",
+        "name": "黎安"
+      },
+      {
+        "id": "player",
+        "name": "玩家"
+      },
+      {
+        "id": "observer",
+        "name": "林弦"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "recipient-single-clarified-supported",
+      "pair_id": "boundary-mixed-recipient-clarified",
+      "factor": "recipient_count",
+      "variant": "single_recipient",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "一个片段只向黎安提出建议，没有第二接收者。",
+      "speech": {
+        "text": "黎安，我建议我们先核对记录，再决定下一步。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "recipient-mixed-clarified-unsupported",
+      "pair_id": "boundary-mixed-recipient-clarified",
+      "factor": "recipient_count",
+      "variant": "mixed_recipients",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "mixed_recipient"
+      ],
+      "rationale": "同一片段分别向黎安建议、向林弦提问；两项内容各自合法，唯一变量是两个主要接收者。",
+      "speech": {
+        "text": "黎安，我建议我们先核对记录；林弦，你知道那把黄铜钥匙在哪里吗？",
+        "claims": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,530 @@
+{
+  "format": "sceneweaver.story.v3",
+  "recipe": {
+    "schema_version": 1,
+    "template_id": "ferry-narrative",
+    "template_version": 1,
+    "title": "雨港来信 · 创作闭环验收",
+    "description": "两场景、两位 NPC、两套造型、开场变体、背包与信件、需要接收同意的交接、AI 条件出口。",
+    "world": "当代雾港，暴雨即将到来。人物都是成年人，此刻都在码头候船亭。",
+    "people": [
+      {
+        "alias": "captain",
+        "profile": {
+          "name": "阿岚",
+          "core": "你是渡船船长，重视安全，说话直接，也愿意倾听乘客。",
+          "document_ids": [],
+          "world": "当代雾港，暴雨即将到来。人物都是成年人，此刻都在码头候船亭。",
+          "relationships": []
+        },
+        "location": "候船亭",
+        "goals": [],
+        "unnoticed": [],
+        "presentation": {
+          "version": 1,
+          "base_sprite": null,
+          "default_outfit": "daily",
+          "outfits": [
+            {
+              "id": "daily",
+              "name": "船长日常服",
+              "default_variant": "neutral",
+              "variants": [
+                {
+                  "id": "neutral",
+                  "name": "平静",
+                  "sprite": "562232f5728b4ed631cec6db8fb9a15e72c8dc11bd4311c84029c4b579d3136a",
+                  "expression": "neutral",
+                  "pose": null
+                },
+                {
+                  "id": "smile",
+                  "name": "微笑",
+                  "sprite": "b05f5663047312d1b4ff0fde814e7c3a3573d7807f451fad8c47f2d8cf9f5963",
+                  "expression": "happy",
+                  "pose": null
+                }
+              ]
+            },
+            {
+              "id": "rain",
+              "name": "黄色雨衣",
+              "default_variant": "neutral",
+              "variants": [
+                {
+                  "id": "neutral",
+                  "name": "平静",
+                  "sprite": "3928642dcf87a17cf3e344222f258237f944063402aba163414e07d2526704dc",
+                  "expression": "neutral",
+                  "pose": null
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "alias": "keeper",
+        "profile": {
+          "name": "沈舟",
+          "core": "你是码头值班员，做事耐心，坚持区分公告、传闻与实际见闻。",
+          "document_ids": [],
+          "world": "当代雾港，暴雨即将到来。人物都是成年人，此刻都在码头候船亭。",
+          "relationships": []
+        },
+        "location": "候船亭",
+        "goals": [],
+        "unnoticed": [],
+        "presentation": {
+          "version": 1,
+          "base_sprite": "d6c615d0c9160fb63ea90ec9e83fbe710981e7950e33c8e19d52ffec93a748ca",
+          "default_outfit": null,
+          "outfits": []
+        }
+      }
+    ],
+    "player": {
+      "alias": "player",
+      "name": "旅人",
+      "location": "候船亭"
+    },
+    "speech": [],
+    "knowledge": [],
+    "narrative": {
+      "entry": "evening",
+      "nodes": [
+        {
+          "id": "evening",
+          "title": "雨夜候船亭",
+          "editor_position": null,
+          "text": "",
+          "observers": [
+            "player",
+            "captain",
+            "keeper"
+          ],
+          "background": "829853bc926dad80301b1a5f6c815b861e60b747ef5c739e06d4ac4cf4e0491b",
+          "stage": [
+            {
+              "actor": "captain",
+              "position": "left",
+              "transform": {
+                "version": 1,
+                "x": 470.0,
+                "y": 900.0,
+                "scale_x": 1.0,
+                "scale_y": 1.0,
+                "rotation": 0.0
+              },
+              "outfit": "daily",
+              "variant": null,
+              "draw_order": 1,
+              "editor_locked": false,
+              "editor_hidden": false
+            },
+            {
+              "actor": "keeper",
+              "position": "right",
+              "transform": {
+                "version": 1,
+                "x": 1130.0,
+                "y": 900.0,
+                "scale_x": 1.0,
+                "scale_y": 1.0,
+                "rotation": 0.0
+              },
+              "outfit": null,
+              "variant": null,
+              "draw_order": 2,
+              "editor_locked": false,
+              "editor_hidden": false
+            }
+          ],
+          "objects": [
+            {
+              "version": 1,
+              "id": "rail",
+              "kind": "decoration",
+              "name": "前景栏杆",
+              "item": null,
+              "sprite": "80e28c0f9da79b85a207e6f2e335c32c7e9c034f61f4a331b8546293bf368c13",
+              "transform": {
+                "version": 1,
+                "x": 800.0,
+                "y": 900.0,
+                "scale_x": 1.5,
+                "scale_y": 1.5,
+                "rotation": 0.0
+              },
+              "layer": "foreground",
+              "order": 0,
+              "editor_locked": false,
+              "editor_hidden": false
+            },
+            {
+              "version": 1,
+              "id": "letter-image",
+              "kind": "item",
+              "name": "信纸",
+              "item": "letter",
+              "sprite": "20eb6a9d0925a681e6802fa2b5a84d1681340e5e31739c094f85867919e58ee1",
+              "transform": {
+                "version": 1,
+                "x": 820.0,
+                "y": 820.0,
+                "scale_x": 0.25,
+                "scale_y": 0.25,
+                "rotation": 0.0
+              },
+              "layer": "entities",
+              "order": 3,
+              "editor_locked": false,
+              "editor_hidden": false
+            }
+          ],
+          "mode": "player",
+          "participants": [],
+          "opening": [
+            {
+              "id": "intro",
+              "kind": "narration",
+              "text": "暴雨将至。你的背包里有一封给船长的信。",
+              "speaker": null,
+              "outfit": null,
+              "variant": null
+            },
+            {
+              "id": "greeting",
+              "kind": "dialogue",
+              "text": "你带了给我的信？请先从背包里拿出来。",
+              "speaker": "captain",
+              "outfit": "daily",
+              "variant": "smile"
+            }
+          ]
+        },
+        {
+          "id": "morning",
+          "title": "晨光候船亭",
+          "editor_position": null,
+          "text": "",
+          "observers": [
+            "player",
+            "captain",
+            "keeper"
+          ],
+          "background": "1d493dc56b3e9724162dc11f69de62b2991b01ecac586dd3003ad53387ff48e8",
+          "stage": [
+            {
+              "actor": "captain",
+              "position": "left",
+              "transform": {
+                "version": 1,
+                "x": 470.0,
+                "y": 900.0,
+                "scale_x": 1.0,
+                "scale_y": 1.0,
+                "rotation": 0.0
+              },
+              "outfit": "rain",
+              "variant": null,
+              "draw_order": 1,
+              "editor_locked": false,
+              "editor_hidden": false
+            },
+            {
+              "actor": "keeper",
+              "position": "right",
+              "transform": {
+                "version": 1,
+                "x": 1130.0,
+                "y": 900.0,
+                "scale_x": 1.0,
+                "scale_y": 1.0,
+                "rotation": 0.0
+              },
+              "outfit": null,
+              "variant": null,
+              "draw_order": 2,
+              "editor_locked": false,
+              "editor_hidden": false
+            }
+          ],
+          "objects": [
+            {
+              "version": 1,
+              "id": "morning-rail",
+              "kind": "decoration",
+              "name": "前景栏杆",
+              "item": null,
+              "sprite": "80e28c0f9da79b85a207e6f2e335c32c7e9c034f61f4a331b8546293bf368c13",
+              "transform": {
+                "version": 1,
+                "x": 800.0,
+                "y": 900.0,
+                "scale_x": 1.5,
+                "scale_y": 1.5,
+                "rotation": 0.0
+              },
+              "layer": "foreground",
+              "order": 0,
+              "editor_locked": false,
+              "editor_hidden": false
+            }
+          ],
+          "mode": "player",
+          "participants": [],
+          "opening": [
+            {
+              "id": "ready",
+              "kind": "dialogue",
+              "text": "信我收到了。雨衣也准备好了，我们继续聊。",
+              "speaker": "captain",
+              "outfit": "rain",
+              "variant": "neutral"
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "continue",
+          "source": "evening",
+          "target": "morning",
+          "label": "准备妥当后继续",
+          "trigger": "ai",
+          "condition": "玩家已把信交给阿岚，并明确表示现在可以继续等待。",
+          "requires_holding": {
+            "item": "letter",
+            "actor": "captain"
+          }
+        }
+      ]
+    },
+    "item_world": {
+      "items": [
+        {
+          "id": "bag",
+          "definition": {
+            "id": "backpack",
+            "name": "日常背包",
+            "template_kind": "container",
+            "tags": [
+              "fabric",
+              "bag"
+            ],
+            "mass_g": 600,
+            "external_volume_ml": 15000,
+            "external_volume_mode": "fixed",
+            "capabilities": {
+              "movable": true,
+              "can_contain": true,
+              "can_be_contained": true
+            },
+            "container": {
+              "capacity_ml": {
+                "mode": "limited",
+                "value": 12000
+              },
+              "max_contents_mass_g": {
+                "mode": "limited",
+                "value": 8000
+              },
+              "max_items": {
+                "mode": "unlimited",
+                "value": null
+              },
+              "accept_any_tags": [],
+              "reject_any_tags": [
+                "burning",
+                "loose_liquid"
+              ]
+            },
+            "initial_state": {
+              "destroyed": false,
+              "open": false,
+              "locked": false,
+              "opaque": true
+            },
+            "requires_container_tags": [],
+            "notes": "自身重量不包含内容物；背包随角色移动时带走全部内容。",
+            "destruction_rule": null,
+            "transformation_rules": []
+          },
+          "placement": {
+            "kind": "actor",
+            "target": "player"
+          },
+          "state": {
+            "destroyed": false,
+            "open": false,
+            "locked": false,
+            "opaque": true
+          },
+          "owner_id": null,
+          "revision": 1,
+          "source_instance_ids": [],
+          "preset_catalog": "sceneweaver-basic-items",
+          "preset_version": 1
+        },
+        {
+          "id": "letter",
+          "definition": {
+            "id": "paper-sheet",
+            "name": "普通信纸",
+            "template_kind": "prop",
+            "tags": [
+              "paper",
+              "document"
+            ],
+            "mass_g": 5,
+            "external_volume_ml": 8,
+            "external_volume_mode": "fixed",
+            "capabilities": {
+              "movable": true,
+              "can_contain": false,
+              "can_be_contained": true
+            },
+            "container": null,
+            "initial_state": {
+              "destroyed": false,
+              "open": false,
+              "locked": false,
+              "opaque": true
+            },
+            "requires_container_tags": [],
+            "notes": "内容另行编辑；未阅读不自动获知正文。",
+            "destruction_rule": null,
+            "transformation_rules": []
+          },
+          "placement": {
+            "kind": "container",
+            "target": "bag"
+          },
+          "state": {
+            "destroyed": false,
+            "open": false,
+            "locked": false,
+            "opaque": true
+          },
+          "owner_id": null,
+          "revision": 1,
+          "source_instance_ids": [],
+          "preset_catalog": "sceneweaver-basic-items",
+          "preset_version": 1
+        }
+      ],
+      "actors": [
+        {
+          "id": "captain",
+          "location": "候船亭",
+          "lift_limit_g": {
+            "mode": "limited",
+            "value": 20000
+          },
+          "carry_limit_g": {
+            "mode": "limited",
+            "value": 20000
+          }
+        },
+        {
+          "id": "keeper",
+          "location": "候船亭",
+          "lift_limit_g": {
+            "mode": "limited",
+            "value": 20000
+          },
+          "carry_limit_g": {
+            "mode": "limited",
+            "value": 20000
+          }
+        },
+        {
+          "id": "player",
+          "location": "候船亭",
+          "lift_limit_g": {
+            "mode": "limited",
+            "value": 20000
+          },
+          "carry_limit_g": {
+            "mode": "limited",
+            "value": 20000
+          }
+        }
+      ],
+      "policy": {
+        "check_volume": true,
+        "check_mass": true,
+        "max_nesting": 8
+      }
+    },
+    "image_assets": [
+      {
+        "id": "waiting-room",
+        "name": "waiting-room",
+        "kind": "png",
+        "content_hash": "829853bc926dad80301b1a5f6c815b861e60b747ef5c739e06d4ac4cf4e0491b"
+      },
+      {
+        "id": "morning-room",
+        "name": "morning-room",
+        "kind": "png",
+        "content_hash": "1d493dc56b3e9724162dc11f69de62b2991b01ecac586dd3003ad53387ff48e8"
+      },
+      {
+        "id": "captain-daily",
+        "name": "captain-daily",
+        "kind": "png",
+        "content_hash": "562232f5728b4ed631cec6db8fb9a15e72c8dc11bd4311c84029c4b579d3136a"
+      },
+      {
+        "id": "captain-smile",
+        "name": "captain-smile",
+        "kind": "png",
+        "content_hash": "b05f5663047312d1b4ff0fde814e7c3a3573d7807f451fad8c47f2d8cf9f5963"
+      },
+      {
+        "id": "captain-raincoat",
+        "name": "captain-raincoat",
+        "kind": "png",
+        "content_hash": "3928642dcf87a17cf3e344222f258237f944063402aba163414e07d2526704dc"
+      },
+      {
+        "id": "keeper-daily",
+        "name": "keeper-daily",
+        "kind": "png",
+        "content_hash": "d6c615d0c9160fb63ea90ec9e83fbe710981e7950e33c8e19d52ffec93a748ca"
+      },
+      {
+        "id": "foreground-rail",
+        "name": "foreground-rail",
+        "kind": "png",
+        "content_hash": "80e28c0f9da79b85a207e6f2e335c32c7e9c034f61f4a331b8546293bf368c13"
+      },
+      {
+        "id": "letter",
+        "name": "letter",
+        "kind": "png",
+        "content_hash": "20eb6a9d0925a681e6802fa2b5a84d1681340e5e31739c094f85867919e58ee1"
+      },
+      {
+        "id": "bag",
+        "name": "bag",
+        "kind": "png",
+        "content_hash": "d4c0ea88611358d5e84885b7e4c3c3393cd138773a5ff9b27edb499c0eeee9f7"
+      }
+    ]
+  },
+  "assets": {
+    "829853bc926dad80301b1a5f6c815b861e60b747ef5c739e06d4ac4cf4e0491b": "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",
+    "1d493dc56b3e9724162dc11f69de62b2991b01ecac586dd3003ad53387ff48e8": "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",
+    "562232f5728b4ed631cec6db8fb9a15e72c8dc11bd4311c84029c4b579d3136a": "iVBORw0KGgoAAAANSUhEUgAAALQAAAEOCAYAAAAg6z2VAAAFUUlEQVR4nO3asY0YRBgFYVfimCpoyE2R0AgNUYIdIwhOew/N3uobafLV/ybcb98AAAAAAAAAAAAA4Cn+/uuPn/y39S44pA7nVutdcEgdzq3Wu+CQOpxbrXfBIXU4t1rvgkPqcG613gWH1OHcar0LDqnDudV6FxxSh3Or9S44pA7nVutdcEgdzq3Wu+CQOpxbrXfBIXU4t1rvgkPqcG613gWH1OHcar0LDqnDudV6FxxSh3Or9S44pA7nVutdcEgdzq3Wu+CQOpxbrXfBIXU4t1rvgkPqcG613gWH1OHcar0LDqnDudV6FxxSh3Or9S445KMDf//+24esAly/r94Fhwha0E8haEE/haAF/RSCFvRTCFrQTyFoQT+FoAX9FFWAt1vvgkPqcG613gWH1OHcar0LDqnDudV6FxxSh3Or9S44pA7nVutdcEgdzq3Wu+CQOpxbrXfBIXU4t1rvgkPqcG613gWH1OHcar0LDqnDudV6FxxSh3Or9S44pA7nVutdcMj/GcVHv3R+RkHjHwha0E8haEFfx+8//vx5qqD/28/ctO7hyyNoQT/FrUF/ZQUdImhBP4WgBf0Ughb0Uwha0E8haEE/haAF/RSCFvRTCFrQTyFoQT+FoAX9FIIW9FMIWtBP8Znjc2/dw5enHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAU9JR6QAp6Sj0gBT2lHpCCnlIPSEFPqQekoKfUA1LQU+oBKegp9YAUNAAAAAAAAAAAAAAAAAAAAAAAAAAAuI9fx+Ua1PM9fTgAAAAASUVORK5CYII=",
+    "b05f5663047312d1b4ff0fde814e7c3a3573d7807f451fad8c47f2d8cf9f5963": "iVBORw0KGgoAAAANSUhEUgAAALQAAAEOCAYAAAAg6z2VAAAFUklEQVR4nO3asY0gNBgF4auMEpCo45oioREo6Eo4YgTByvvQeK1vpMmt/03ob98AAAAAAAAAAAAA4Cl+/Pn7T/7behccUodzq/UuOKQO51brXXBIHc6t1rvgkDqcW613wSF1OLda74JD6nButd4Fh9Th3Gq9Cw6pw7nVehccUodzq/UuOKQO51brXXBIHc6t1rvgkDqcW613wSF1OLda74JD6nButd4Fh9Th3Gq9Cw6pw7nVehccUodzq/UuOKQO51brXXBIHc6t1rvgkDqcW613wSF1OLda74JD6nButd4Fh9Th3Gq9Cw6pw7nVehcc8tGB//r1tw9ZBbh+X70LDhG0oJ9C0IJ+CkEL+ikELeinELSgn0LQgn4KQQv6KaoAb7feBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JD/M4qPfun8jILGPxC0oJ9C0IK+jl++//HzVEH/t5+5ad3Dl0fQgn6KW4P+ygo6RNCCfgpBC/opBC3opxC0oJ9C0IJ+CkEL+ikELeinELSgn0LQgn4KQQv6KQQt6KcQtKCf4jPH5966hy9PPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEpaAAAAAAAAAAAAAAAAAAAAAAAAAAAcB9/Az/1NamuunilAAAAAElFTkSuQmCC",
+    "3928642dcf87a17cf3e344222f258237f944063402aba163414e07d2526704dc": "iVBORw0KGgoAAAANSUhEUgAAALQAAAEOCAYAAAAg6z2VAAAFUUlEQVR4nO3asY0YRBgFYVfimJSO3QMd0AsxJdgxguC099Dsrb6RJl/9b8L99g0AAAAAAAAAAAAAnuLvP3/85L+td8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhHx34+/ffPmQV4Pp99S44RNCCfgpBC/opBC3opxC0oJ9C0IJ+CkEL+ikELeinqAK83XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ/7PKD76pfMzChr/QNCCfgpBC/o6/vrj95+nCvq//cxN6x6+PIIW9FPcGvRXVtAhghb0Uwha0E8haEE/haAF/RSCFvRTCFrQTyFoQT+FoAX9FIIW9FMIWtBPIWhBP4WgBf0Unzk+99Y9fHnqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBT6kHpKCn1ANS0FPqASnoKfWAFPSUekAKeko9IAU9pR6Qgp5SD0hBAwAAAAAAAAAAAAAAAAAAAAAAAACA+/gFjO/NLVw7CXQAAAAASUVORK5CYII=",
+    "d6c615d0c9160fb63ea90ec9e83fbe710981e7950e33c8e19d52ffec93a748ca": "iVBORw0KGgoAAAANSUhEUgAAALQAAAEOCAYAAAAg6z2VAAAFUklEQVR4nO3asY0YRBgFYVfimHJowuXQA7XQECXYMYLgtPfQ7K2+kSZf/W/C/fYNAAAAAAAAAAAAAJ7i77/+/Ml/W++CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQz468Pfvv33IKsD1++pdcIigBf0Ughb0Uwha0E8haEE/haAF/RSCFvRTCFrQT1EFeLv1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYfU4dxqvQsOqcO51XoXHFKHc6v1LjikDudW611wSB3Orda74JA6nFutd8EhdTi3Wu+CQ+pwbrXeBYf8n1F89EvnZxQ0/oGgBf0Ughb0dfz+x4+fpwr6v/3MTesevjyCFvRT3Br0V1bQIYIW9FMIWtBPIWhBP4WgBf0Ughb0Uwha0E8haEE/haAF/RSCFvRTCFrQTyFoQT+FoAX9FJ85PvfWPXx56gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQU+pB6Sgp9QDUtBT6gEp6Cn1gBT0lHpACnpKPSAFPaUekIKeUg9IQQMAAAAAAAAAAAAAAAAAAAAAAAAAgPv4Be3n0TDXFFHUAAAAAElFTkSuQmCC",
+    "80e28c0f9da79b85a207e6f2e335c32c7e9c034f61f4a331b8546293bf368c13": "iVBORw0KGgoAAAANSUhEUgAAAeAAAAEOCAYAAABRmsRnAAADh0lEQVR4nO3VwWkDARAEwUvECkD552flMA1abKqg/8t+5nkAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIL36+dXkiR9NwMsSdJBBliSpIMMsCRJBxlgSZIOMsCSJB1kgCVJOsgAS5J0kAGWJOkgAyxJ0kEGWJKkgwywJEkHGWBJkg4ywJIkHWSAJUk6yABLknSQAZYk6SADLEnSQc+VP3s4AKfsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACzsR+SBACz+y358AIBddnastArIAAAAAElFTkSuQmCC",
+    "20eb6a9d0925a681e6802fa2b5a84d1681340e5e31739c094f85867919e58ee1": "iVBORw0KGgoAAAANSUhEUgAAAKAAAABuCAYAAACgLRjpAAABHElEQVR4nO3ZQRGDQBREQTRFBCaQGkGRwBFkvOz+flXtYG5zHJIkSZIkSZIkSZIkSZIkSZIkSRrV/fs+YICkDJCUAZIyQFIGSMoASRkgKQMkZYCkDJCUAZIyQFIGSMoASS0zwOv88AcMEAM0wLkMEAMsBsieDJCUAZIyQFIGSMoASRkgKQMkZYCkDJDUMgOsL6id1KMzwOHq0RngcPXoDHC4enRLDpA9GSApAyRlgKQMkJQBkjJAUgZIygBJGSApAyRlgKQMkJQBkjJAUgZIygBJGSApAyRlgKQMkJQBkjJAUgZIygBJGSApAyRlgKQMkJQBkjJAUgZIygBJGSApAyRlgKQMkFQ2QEmSJEmSJEmSJEmSJEmSJEmSJCW9YQ/CT6/386QAAAAASUVORK5CYII=",
+    "d4c0ea88611358d5e84885b7e4c3c3393cd138773a5ff9b27edb499c0eeee9f7": "iVBORw0KGgoAAAANSUhEUgAAAIwAAACMCAYAAACuwEE+AAABn0lEQVR4nO3SQVUCAABEQRp5pAAHS5CAEGagDe0wAEfF/cLse5Ng/+FgZmZmZmZ/t8vp486j9S/ZrY+pWv+S3fqYqvUv2a2PqVr/kt36mKr1L9mtj6la/5Ld+piq9S/ZrY+pWv+S3fqYqvUv2a2PqVr/kt36mKr1L9mtj6la/5Ld+piq9S/ZrY+pWv+S3fqYqvUvv7br+Xjn/xEMgkEwRAgGwSAYIgSDYBAMEYJBMAiGCMEgGARDhGAQDIIhQjAIBsEQIRgEg2CIEAyCQTBECAbBIBgiBINgEAwRguH1g7l9ffIDgkEwghGMYCIEg2AEIxjBRAgGwQhGMIKJEAyCEYxgBBMhGAQjGMEIJkIwCEYwghFMhGAQjGAEI5gIwSAYwQhGMBGCQTCCEYxgIgSDYAQjGMFECAbBCEYwgokQDIIRjGAEEyEYBCMYwQgm4u2CYUcwCAbBECEYBINgiBAMgkEwRAgGwSAYIgSDYBAMEYJBMAiGCMEgGARDhGAQDIIhQjAIBsEQIRgEwwsGY2ZmZmZmZmZmZmZmZmZmZvb8fQO/yKP/R/vOdAAAAABJRU5ErkJggg=="
+  },
+  "documents": {}
+}

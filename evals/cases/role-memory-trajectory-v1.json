@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "name": "角色记忆压缩与撤回轨迹",
+  "purpose": "验证角色独立知情、部分听闻、纠正、目标持续、两次快照切换、来源撤回和重启恢复。",
+  "grading_isolation": "allowed 与 forbidden 仅供测试判定，不得进入角色消息或记忆整理提示。",
+  "actors": {
+    "keeper": "完整听到秘密与纠正的守钟人",
+    "listener": "只匿名听到秘密片段的记录员",
+    "absent": "不在观察者列表中的旁观角色"
+  },
+  "checkpoints": [
+    {
+      "id": "before_first_snapshot",
+      "allowed": ["银钥匙最初被说成在钟室抽屉", "该消息来自管理员转述"],
+      "forbidden": ["转述已被确认属实", "未观察角色知道银钥匙位置"]
+    },
+    {
+      "id": "after_second_snapshot",
+      "allowed": ["原说法曾经出现", "后来纠正为钥匙在档案柜", "归还钟摆的承诺仍有效"],
+      "forbidden": ["纠正使原发言从未发生", "匿名听众知道未听到的句尾"]
+    },
+    {
+      "id": "after_source_redaction_and_restart",
+      "allowed": ["独立的纠正事件仍可见", "归还钟摆的承诺仍有效"],
+      "forbidden": ["已撤回的原始秘密来源", "旧隐私版本快照继续参与工作集"]
+    }
+  ]
+}

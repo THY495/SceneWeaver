@@ -1,0 +1,618 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "version": 1,
+  "scope": "synthetic development calibration, not held out",
+  "cases": [
+    {
+      "case_id": "acquisition-supported",
+      "family": "acquisition",
+      "expected_accept": true,
+      "rationale": "听闻不能证明阅读经历",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "刚才我听到有人说“盒子在楼上”，没辨认出是谁。",
+        "claims": [
+          {
+            "text": "有人说“盒子在楼上”",
+            "source_id": "heard",
+            "quote": "盒子在楼上。",
+            "mode": "reported"
+          }
+        ]
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "acquisition-unsupported",
+      "family": "acquisition",
+      "expected_accept": false,
+      "rationale": "听闻不能证明阅读经历",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "我翻过档案记录，上面写着“盒子在楼上”。",
+        "claims": [
+          {
+            "text": "上面写着“盒子在楼上”",
+            "source_id": "heard",
+            "quote": "盒子在楼上。",
+            "mode": "reported"
+          }
+        ]
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "statement-supported",
+      "family": "statement",
+      "expected_accept": true,
+      "rationale": "发言只能证明曾有人说过",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "有人说盒子在楼上，我还不能确认盒子实际在哪。",
+        "claims": [
+          {
+            "text": "有人说盒子在楼上",
+            "source_id": "heard",
+            "quote": "盒子在楼上。",
+            "mode": "reported"
+          }
+        ]
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "statement-unsupported",
+      "family": "statement",
+      "expected_accept": false,
+      "rationale": "发言只能证明曾有人说过",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "盒子确实就在楼上。",
+        "claims": [
+          {
+            "text": "盒子确实就在楼上。",
+            "source_id": "heard",
+            "quote": "盒子在楼上。",
+            "mode": "fact"
+          }
+        ]
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "goal-supported",
+      "family": "goal",
+      "expected_accept": true,
+      "rationale": "目标不证明行动已完成",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "我打算先核对交接记录。",
+        "claims": []
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "goal-unsupported",
+      "family": "goal",
+      "expected_accept": false,
+      "rationale": "目标不证明行动已完成",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "我已经核对完交接记录。",
+        "claims": [
+          {
+            "text": "我已经核对完交接记录。",
+            "source_id": "goal",
+            "quote": "核对交接记录。",
+            "mode": "action"
+          }
+        ]
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "history-supported",
+      "family": "history",
+      "expected_accept": true,
+      "rationale": "当前局部动作可以发挥，过去经历需要依据",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "（轻轻点头）我愿意先听你的想法。",
+        "claims": []
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "history-unsupported",
+      "family": "history",
+      "expected_accept": false,
+      "rationale": "当前局部动作可以发挥，过去经历需要依据",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "昨天我替你核对了三遍记录。",
+        "claims": []
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "agreement-supported",
+      "family": "agreement",
+      "expected_accept": true,
+      "rationale": "提议不是已达成的约定",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "我建议把方案写下来，你觉得呢？",
+        "claims": []
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "agreement-unsupported",
+      "family": "agreement",
+      "expected_accept": false,
+      "rationale": "提议不是已达成的约定",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "我们已经说好把方案写进正式记录。",
+        "claims": []
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "presupposition-supported",
+      "family": "presupposition",
+      "expected_accept": true,
+      "rationale": "纯提问不确立事实，但偷窃预设需要依据",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "你知道钥匙在哪里吗？",
+        "claims": []
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    },
+    {
+      "case_id": "presupposition-unsupported",
+      "family": "presupposition",
+      "expected_accept": false,
+      "rationale": "纯提问不确立事实，但偷窃预设需要依据",
+      "info": {
+        "profile": {
+          "name": "沈知",
+          "core": "你是成年档案管理员，做事谨慎。",
+          "world": "虚构档案室"
+        },
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "盒子在楼上。",
+            "actor_id": null,
+            "speaker": "未辨认的声音"
+          }
+        ],
+        "active_goals": {
+          "goal": "核对交接记录。"
+        }
+      },
+      "speech": {
+        "text": "你为什么偷走了钥匙？",
+        "claims": []
+      },
+      "sources": {
+        "heard": "盒子在楼上。",
+        "goal": "核对交接记录。"
+      },
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "peer"
+      },
+      "cast": [
+        {
+          "id": "npc",
+          "name": "沈知"
+        },
+        {
+          "id": "peer",
+          "name": "黎安"
+        }
+      ]
+    }
+  ]
+}

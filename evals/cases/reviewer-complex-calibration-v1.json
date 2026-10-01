@@ -1,0 +1,530 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-complex-calibration-v1",
+  "version": 1,
+  "scope": "synthetic development calibration; paired single-factor cases, not held out",
+  "defaults": {
+    "info": {
+      "profile": {
+        "name": "沈知",
+        "core": "你是成年档案管理员，做事谨慎，不把传闻冒充结论。",
+        "world": "虚构档案室"
+      },
+      "observations": [
+        {
+          "id": "heard_box",
+          "kind": "speech",
+          "text": "盒子在楼上，但我还没确认。",
+          "actor_id": null,
+          "speaker": "未辨认的声音"
+        },
+        {
+          "id": "witnessed_seal",
+          "kind": "host",
+          "text": "沈知亲眼看见黎安把封条放在桌面上。",
+          "detail": {
+            "basis": "witnessed"
+          }
+        },
+        {
+          "id": "comparison_agreement",
+          "kind": "host",
+          "text": "沈知与黎安只同意比较纸质与电子两套登记方案。",
+          "detail": {
+            "basis": "confirmed"
+          }
+        }
+      ],
+      "scene_facts": {
+        "key_exists": {
+          "event_id": "key_exists",
+          "value": "档案室确有一把黄铜钥匙。",
+          "basis": "confirmed"
+        }
+      },
+      "known_objects": [
+        {
+          "name": "黄铜钥匙",
+          "known": "确认存在，位置和持有者未知"
+        }
+      ],
+      "active_goals": {
+        "goal": "沈知希望核对交接记录，并建议在双方决定后记录最终方案。"
+      }
+    },
+    "sources": {
+      "heard_box": "盒子在楼上，但我还没确认。",
+      "witnessed_seal": "沈知亲眼看见黎安把封条放在桌面上。",
+      "comparison_agreement": "沈知与黎安只同意比较纸质与电子两套登记方案。",
+      "key_exists": "档案室确有一把黄铜钥匙。",
+      "goal": "沈知希望核对交接记录，并建议在双方决定后记录最终方案。"
+    },
+    "intent": {
+      "act": "speak",
+      "deception": false,
+      "addressee_id": "peer"
+    },
+    "cast": [
+      {
+        "id": "npc",
+        "name": "沈知"
+      },
+      {
+        "id": "peer",
+        "name": "黎安"
+      },
+      {
+        "id": "player",
+        "name": "玩家"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "length-concise-supported",
+      "pair_id": "style-length-supported",
+      "factor": "length",
+      "variant": "concise",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "简短转述保留了来源和不确定性。",
+      "speech": {
+        "text": "我听到有人说盒子在楼上，但这件事还没确认。",
+        "claims": [
+          {
+            "text": "有人说盒子在楼上",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "length-extended-supported",
+      "pair_id": "style-length-supported",
+      "factor": "length",
+      "variant": "extended",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "较长表达没有增加事实，只重申未知来源和未确认状态。",
+      "speech": {
+        "text": "我刚才听到有人说盒子在楼上，但我没有认出说话的人，也还不能确认这个说法，所以暂时不该把它当成结论。",
+        "claims": [
+          {
+            "text": "有人说盒子在楼上",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "action-plain-supported",
+      "pair_id": "style-local-action-supported",
+      "factor": "local_action",
+      "variant": "plain",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "当前建议不声明新的历史或世界状态。",
+      "speech": {
+        "text": "我建议先听完你的想法。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "action-gesture-supported",
+      "pair_id": "style-local-action-supported",
+      "factor": "local_action",
+      "variant": "gesture",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "轻微当前动作属于局部表达，不改变世界状态。",
+      "speech": {
+        "text": "（轻轻点头）我建议先听完你的想法。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "report-direct-supported",
+      "pair_id": "style-nested-report-supported",
+      "factor": "nested_report",
+      "variant": "direct",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "直接转述准确保留说话者未确认这一限定。",
+      "speech": {
+        "text": "有人说盒子在楼上，但说话的人自己也没有确认。",
+        "claims": [
+          {
+            "text": "有人说盒子在楼上，但说话的人自己也没有确认",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上，但我还没确认。",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "report-nested-supported",
+      "pair_id": "style-nested-report-supported",
+      "factor": "nested_report",
+      "variant": "nested",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "嵌套转述没有升级为角色自己的确认事实。",
+      "speech": {
+        "text": "我只能转述刚才听到的话：有人说“盒子在楼上”，同时也承认自己还没有确认。",
+        "claims": [
+          {
+            "text": "有人说“盒子在楼上”，同时也承认自己还没有确认",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上，但我还没确认。",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "proposal-only-supported",
+      "pair_id": "style-goal-proposal-supported",
+      "factor": "goal_plus_proposal",
+      "variant": "proposal_only",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "当前建议不是已完成行动或既成约定。",
+      "speech": {
+        "text": "我建议先核对交接记录，再决定是否写下最终方案。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "goal-and-proposal-supported",
+      "pair_id": "style-goal-proposal-supported",
+      "factor": "goal_plus_proposal",
+      "variant": "goal_and_proposal",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "个人目标与当前建议并列，仍没有声称已经完成或达成约定。",
+      "speech": {
+        "text": "我本来就想核对交接记录，也建议等双方决定以后再写下最终方案。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "packing-separated-supported",
+      "pair_id": "style-assertion-packing-supported",
+      "factor": "assertion_packing",
+      "variant": "separate_sentences",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "两个断言分别得到确认事实和亲历事件支持。",
+      "speech": {
+        "text": "档案室确有一把黄铜钥匙。我亲眼看见黎安把封条放在桌面上。",
+        "claims": [
+          {
+            "text": "档案室确有一把黄铜钥匙",
+            "source_id": "key_exists",
+            "quote": "档案室确有一把黄铜钥匙。",
+            "mode": "fact"
+          },
+          {
+            "text": "我亲眼看见黎安把封条放在桌面上",
+            "source_id": "witnessed_seal",
+            "quote": "沈知亲眼看见黎安把封条放在桌面上。",
+            "mode": "fact"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "packing-compound-supported",
+      "pair_id": "style-assertion-packing-supported",
+      "factor": "assertion_packing",
+      "variant": "compound_sentence",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "合并句式没有改变两个有依据断言的含义。",
+      "speech": {
+        "text": "档案室确有一把黄铜钥匙，而且我亲眼看见黎安把封条放在桌面上。",
+        "claims": [
+          {
+            "text": "档案室确有一把黄铜钥匙",
+            "source_id": "key_exists",
+            "quote": "档案室确有一把黄铜钥匙。",
+            "mode": "fact"
+          },
+          {
+            "text": "我亲眼看见黎安把封条放在桌面上",
+            "source_id": "witnessed_seal",
+            "quote": "沈知亲眼看见黎安把封条放在桌面上。",
+            "mode": "fact"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "mixed-separated-supported",
+      "pair_id": "style-authority-mix-supported",
+      "factor": "mixed_authority",
+      "variant": "separate_sentences",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "确认事实与未经确认的转述被明确分开。",
+      "speech": {
+        "text": "档案室确有一把黄铜钥匙。至于盒子，我只听到有人说它在楼上，还不能确认。",
+        "claims": [
+          {
+            "text": "档案室确有一把黄铜钥匙",
+            "source_id": "key_exists",
+            "quote": "档案室确有一把黄铜钥匙。",
+            "mode": "fact"
+          },
+          {
+            "text": "有人说它在楼上",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "mixed-compound-supported",
+      "pair_id": "style-authority-mix-supported",
+      "factor": "mixed_authority",
+      "variant": "compound_sentence",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "同句并列仍明确区分确认事实和未确认转述。",
+      "speech": {
+        "text": "档案室确有一把黄铜钥匙，而盒子在楼上只是我听来的说法，目前还不能确认。",
+        "claims": [
+          {
+            "text": "档案室确有一把黄铜钥匙",
+            "source_id": "key_exists",
+            "quote": "档案室确有一把黄铜钥匙。",
+            "mode": "fact"
+          },
+          {
+            "text": "盒子在楼上只是我听来的说法",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "acquisition-heard-supported",
+      "pair_id": "boundary-acquisition",
+      "factor": "acquisition_mode",
+      "variant": "heard",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "角色按实际经历表述为听到。",
+      "speech": {
+        "text": "我听到有人说盒子在楼上。",
+        "claims": [
+          {
+            "text": "有人说盒子在楼上",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "acquisition-read-unsupported",
+      "pair_id": "boundary-acquisition",
+      "factor": "acquisition_mode",
+      "variant": "read",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "acquisition_mismatch"
+      ],
+      "rationale": "听到发言不支持角色声称读过档案。",
+      "speech": {
+        "text": "我在档案里读到盒子在楼上。",
+        "claims": [
+          {
+            "text": "我在档案里读到盒子在楼上",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "statement-reported-supported",
+      "pair_id": "boundary-statement-promotion",
+      "factor": "statement_authority",
+      "variant": "reported",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "发言内容只作为未经确认的转述。",
+      "speech": {
+        "text": "有人说盒子在楼上，但我还不能确认。",
+        "claims": [
+          {
+            "text": "有人说盒子在楼上",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "statement-promoted-unsupported",
+      "pair_id": "boundary-statement-promotion",
+      "factor": "statement_authority",
+      "variant": "promoted_fact",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "statement_promotion"
+      ],
+      "rationale": "匿名发言不能独立确认盒子位置。",
+      "speech": {
+        "text": "盒子确实就在楼上。",
+        "claims": [
+          {
+            "text": "盒子确实就在楼上",
+            "source_id": "heard_box",
+            "quote": "盒子在楼上",
+            "mode": "fact"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "goal-intention-supported",
+      "pair_id": "boundary-goal-completion",
+      "factor": "goal_completion",
+      "variant": "intention",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "个人目标支持打算核对，不证明已经核对。",
+      "speech": {
+        "text": "我打算先核对交接记录。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "goal-completed-unsupported",
+      "pair_id": "boundary-goal-completion",
+      "factor": "goal_completion",
+      "variant": "completed",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "invented_history"
+      ],
+      "rationale": "个人目标不支持声称已经完成核对。",
+      "speech": {
+        "text": "我已经核对完交接记录。",
+        "claims": [
+          {
+            "text": "我已经核对完交接记录",
+            "source_id": "goal",
+            "quote": "核对交接记录",
+            "mode": "action"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "agreement-proposal-supported",
+      "pair_id": "boundary-agreement-expansion",
+      "factor": "agreement_status",
+      "variant": "proposal",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "建议写入记录没有声称对方已同意。",
+      "speech": {
+        "text": "我建议等我们选定方案后，再把结果写进正式记录。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "agreement-expanded-unsupported",
+      "pair_id": "boundary-agreement-expansion",
+      "factor": "agreement_status",
+      "variant": "expanded_agreement",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "agreement_promotion"
+      ],
+      "rationale": "只同意比较方案，不等于同意写入正式记录。",
+      "speech": {
+        "text": "我们已经说好把两套方案都写进正式记录。",
+        "claims": [
+          {
+            "text": "我们已经说好把两套方案都写进正式记录",
+            "source_id": "comparison_agreement",
+            "quote": "只同意比较纸质与电子两套登记方案",
+            "mode": "fact"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "question-neutral-supported",
+      "pair_id": "boundary-question-presupposition",
+      "factor": "question_presupposition",
+      "variant": "neutral",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "已知钥匙存在，可以中性询问位置。",
+      "speech": {
+        "text": "你知道那把黄铜钥匙在哪里吗？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "question-accusatory-unsupported",
+      "pair_id": "boundary-question-presupposition",
+      "factor": "question_presupposition",
+      "variant": "accusatory",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "unsupported_fact"
+      ],
+      "rationale": "问题预设黎安偷走钥匙，但没有该事件依据。",
+      "speech": {
+        "text": "你为什么偷走了那把黄铜钥匙？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "recipient-single-supported",
+      "pair_id": "boundary-mixed-recipient",
+      "factor": "recipient_count",
+      "variant": "single_recipient",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "一个片段只向黎安提出建议。",
+      "speech": {
+        "text": "黎安，我建议我们先核对记录，再决定下一步。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "recipient-mixed-unsupported",
+      "pair_id": "boundary-mixed-recipient",
+      "factor": "recipient_count",
+      "variant": "mixed_recipients",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "mixed_recipient"
+      ],
+      "rationale": "同一片段同时向黎安建议并要求玩家作决定。",
+      "speech": {
+        "text": "黎安，我建议先核对记录；玩家，你现在决定是否执行。",
+        "claims": []
+      }
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg17
+    environment:
+      POSTGRES_USER: sceneweaver
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sceneweaver_local}
+      POSTGRES_DB: sceneweaver
+    ports:
+      - "127.0.0.1:${SCENEWEAVER_PG_PORT:-55432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sceneweaver -d sceneweaver"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  init:
+    build: .
+    env_file: .env
+    environment:
+      CHAT_PRODUCT: roleplay
+      CHAT_DATABASE_URL: postgresql+psycopg://sceneweaver:${POSTGRES_PASSWORD:-sceneweaver_local}@postgres:5432/sceneweaver
+    command: ["sceneweaver", "init"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build: .
+    env_file: .env
+    environment:
+      CHAT_PRODUCT: roleplay
+      CHAT_DATABASE_URL: postgresql+psycopg://sceneweaver:${POSTGRES_PASSWORD:-sceneweaver_local}@postgres:5432/sceneweaver
+      CHAT_DATA_DIR: /app/data
+    command: ["sceneweaver", "worker"]
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+  studio:
+    build: .
+    env_file: .env
+    environment:
+      CHAT_PRODUCT: roleplay
+      CHAT_PORT: 8766
+      CHAT_BIND_HOST: 0.0.0.0
+      CHAT_DATABASE_URL: postgresql+psycopg://sceneweaver:${POSTGRES_PASSWORD:-sceneweaver_local}@postgres:5432/sceneweaver
+      CHAT_DATA_DIR: /app/data
+    command: ["sceneweaver", "serve"]
+    ports:
+      - "127.0.0.1:8766:8766"
+    volumes:
+      - app_data:/app/data
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
+  app_data:

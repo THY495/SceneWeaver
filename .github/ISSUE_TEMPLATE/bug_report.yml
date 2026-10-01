@@ -1,0 +1,38 @@
+name: 问题反馈
+description: 报告 Sceneweaver Studio 或独立游戏的可复现问题
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "感谢反馈。请勿提交 API Key、.env、个人存档或未经授权的故事素材。"
+  - type: input
+    id: version
+    attributes:
+      label: 版本与运行方式
+      description: 例如 v0.1.0-alpha.1、源码 Compose 预览或独立游戏。
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: "1. 新建或导入……\n2. 点击……\n3. 看到……"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期与实际
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 运行环境
+      description: Windows 版本、Docker Desktop 版本，以及是否启用了语音。
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 去敏后的证据
+      description: 可附不含密钥、私人对话和受限素材的错误信息或截图。

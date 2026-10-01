@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "catalog_id": "sceneweaver-basic-items",
+  "catalog_version": 1,
+  "status": "authoring_seed_not_runtime_integrated",
+  "units": {"mass": "g", "volume": "ml"},
+  "value_basis": "fictional_gameplay_estimates_not_physical_measurements",
+  "defaults": {
+    "capabilities": {"movable": true, "can_contain": false, "can_be_contained": true},
+    "external_volume_mode": "fixed",
+    "container": null,
+    "initial_state": {"destroyed": false},
+    "destruction_rule": null,
+    "transformation_rules": []
+  },
+  "presets": [
+    {"id": "paper-sheet", "name": "普通信纸", "template_kind": "prop", "tags": ["paper", "document"], "mass_g": 5, "external_volume_ml": 8, "notes": "内容另行编辑；未阅读不自动获知正文。"},
+    {"id": "envelope", "name": "普通信封", "template_kind": "container", "tags": ["paper", "envelope"], "mass_g": 5, "external_volume_ml": 35, "capabilities": {"can_contain": true}, "initial_state": {"open": false, "locked": false, "opaque": true}, "container": {"capacity_ml": {"mode": "limited", "value": 20}, "max_contents_mass_g": {"mode": "limited", "value": 30}, "max_items": {"mode": "limited", "value": 3}, "accept_any_tags": ["paper"], "reject_any_tags": ["burning", "loose_liquid"]}, "notes": "信纸是独立内容物，打开信封不等于阅读信纸。"},
+    {"id": "notebook", "name": "记事本", "template_kind": "prop", "tags": ["paper", "document", "book"], "mass_g": 180, "external_volume_ml": 350, "notes": "不是默认容器；夹入纸张需作者显式启用容纳能力。"},
+    {"id": "metal-key", "name": "金属钥匙", "template_kind": "prop", "tags": ["metal", "key"], "mass_g": 25, "external_volume_ml": 15, "notes": "匹配的锁由故事实例指定，模板不提供万能开锁能力。"},
+    {"id": "photograph", "name": "照片", "template_kind": "prop", "tags": ["paper", "photograph"], "mass_g": 3, "external_volume_ml": 5, "notes": "可见图像与角色解读分别记录。"},
+    {"id": "cloth-pouch", "name": "布袋", "template_kind": "container", "tags": ["fabric", "bag"], "mass_g": 80, "external_volume_ml": 1200, "capabilities": {"can_contain": true}, "initial_state": {"open": true, "locked": false, "opaque": true}, "container": {"capacity_ml": {"mode": "limited", "value": 1000}, "max_contents_mass_g": {"mode": "limited", "value": 2000}, "max_items": {"mode": "unlimited"}, "accept_any_tags": [], "reject_any_tags": ["burning", "loose_liquid"]}, "notes": "软容器暂采用固定外部占用体积。"},
+    {"id": "backpack", "name": "日常背包", "template_kind": "container", "tags": ["fabric", "bag"], "mass_g": 600, "external_volume_ml": 15000, "capabilities": {"can_contain": true}, "initial_state": {"open": false, "locked": false, "opaque": true}, "container": {"capacity_ml": {"mode": "limited", "value": 12000}, "max_contents_mass_g": {"mode": "limited", "value": 8000}, "max_items": {"mode": "unlimited"}, "accept_any_tags": [], "reject_any_tags": ["burning", "loose_liquid"]}, "notes": "自身重量不包含内容物；背包随角色移动时带走全部内容。"},
+    {"id": "wooden-box", "name": "小木箱", "template_kind": "container", "tags": ["wood", "box"], "mass_g": 2000, "external_volume_ml": 12000, "capabilities": {"can_contain": true}, "initial_state": {"open": false, "locked": false, "opaque": true}, "container": {"capacity_ml": {"mode": "limited", "value": 10000}, "max_contents_mass_g": {"mode": "limited", "value": 15000}, "max_items": {"mode": "unlimited"}, "accept_any_tags": [], "reject_any_tags": ["burning", "loose_liquid"]}, "notes": "箱体销毁后内容物如何处理，必须另配规则。"},
+    {"id": "fixed-safe", "name": "固定保险柜", "template_kind": "container", "tags": ["metal", "safe", "fixed"], "mass_g": 60000, "external_volume_ml": 35000, "capabilities": {"movable": false, "can_contain": true, "can_be_contained": false}, "initial_state": {"open": false, "locked": true, "opaque": true}, "container": {"capacity_ml": {"mode": "limited", "value": 18000}, "max_contents_mass_g": {"mode": "limited", "value": 25000}, "max_items": {"mode": "unlimited"}, "accept_any_tags": [], "reject_any_tags": ["burning", "loose_liquid"]}, "notes": "上锁条件已启用，但钥匙/密码/解锁规则必须由作者配置。"},
+    {"id": "clear-bottle", "name": "透明空瓶", "template_kind": "container", "tags": ["plastic", "bottle", "watertight"], "mass_g": 35, "external_volume_ml": 600, "capabilities": {"can_contain": true}, "initial_state": {"open": false, "locked": false, "opaque": false}, "container": {"capacity_ml": {"mode": "limited", "value": 500}, "max_contents_mass_g": {"mode": "limited", "value": 600}, "max_items": {"mode": "limited", "value": 1}, "accept_any_tags": ["loose_liquid"], "reject_any_tags": ["corrosive", "burning"]}, "notes": "示例只接受整份液体对象，不隐含倾倒、分装或混合功能。"},
+    {"id": "water-portion", "name": "一份清水", "template_kind": "prop", "tags": ["water", "loose_liquid"], "mass_g": 500, "external_volume_ml": 500, "capabilities": {"movable": false}, "requires_container_tags": ["watertight"], "notes": "不能直接徒手拾取；可随容器移动。建议实例化为空瓶的初始内容。"},
+    {"id": "notice-board", "name": "固定公告牌", "template_kind": "scenery", "tags": ["fixed", "notice"], "mass_g": 4000, "external_volume_ml": 8000, "capabilities": {"movable": false, "can_be_contained": false}, "notes": "仅查看，公告内容另配。没有存储空间，不把附着的文字视为内容物。"},
+    {"id": "stone-statue", "name": "固定石像", "template_kind": "scenery", "tags": ["stone", "fixed"], "mass_g": 120000, "external_volume_ml": 50000, "capabilities": {"movable": false, "can_be_contained": false}, "notes": "即使角色足够强，未解除固定也不能直接搬动。"},
+    {"id": "paper-fragments", "name": "一份信纸碎片", "template_kind": "prop", "tags": ["paper", "fragments"], "mass_g": 5, "external_volume_ml": 20, "notes": "可作为撕碎信纸的产物模板；转化实例应引用原信来源，不能凭模板恢复全文。"},
+    {"id": "ash-residue", "name": "一份灰烬", "template_kind": "prop", "tags": ["ash", "residue"], "mass_g": 1, "external_volume_ml": 5, "capabilities": {"movable": false}, "notes": "不默认支持徒手拾取；可另配用容器收集的操作。模板不意味着所有纸质物品都能自动烧成灰烬。"}
+  ],
+  "blank_numeric_examples": {
+    "unknown_mass_g": null,
+    "zero_mass_g": 0,
+    "unconfigured_limit": {"mode": "unset"},
+    "no_limit": {"mode": "unlimited"},
+    "zero_limit": {"mode": "limited", "value": 0}
+  }
+}

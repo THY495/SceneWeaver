@@ -1,0 +1,8 @@
+/* Keep the authored 16:9 composition and its dialogue visible together on
+   typical Windows laptop viewports. Studio retains the full-width edit canvas. */
+@media (min-width: 700px) and (min-height: 500px) {
+  .vn-app .vn-stage-designed .vn-design-frame {
+    width: min(100%, calc((100dvh - 280px) * 16 / 9));
+    margin-inline: auto;
+  }
+}

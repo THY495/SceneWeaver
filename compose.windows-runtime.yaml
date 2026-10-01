@@ -1,0 +1,11 @@
+# Opt-in authoring export path. The default source preview intentionally works
+# without a Windows game runtime and cannot export a standalone Windows game.
+services:
+  roleplay:
+    environment:
+      CHAT_WINDOWS_GAME_RUNTIME_DIR: /run/sceneweaver-game-runtime
+    volumes:
+      - type: bind
+        source: ${SCENEWEAVER_WINDOWS_RUNTIME_HOST:?Set SCENEWEAVER_WINDOWS_RUNTIME_HOST to a local game runtime directory}
+        target: /run/sceneweaver-game-runtime
+        read_only: true

@@ -1,0 +1,339 @@
+{
+  "format": "sceneweaver.story.v4",
+  "recipe": {
+    "schema_version": 1,
+    "template_id": "offstage-dialogue",
+    "template_version": 1,
+    "title": "闭馆前：场外协商",
+    "description": "玩家留在门厅，档案室两名NPC带着不同目标自行决定是否交流。",
+    "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+    "people": [
+      {
+        "alias": "archivist",
+        "profile": {
+          "name": "程安",
+          "core": "你是档案管理员，负责今晚的交接。此前一次口头约定被误解后，你开始要求明确记录。你愿意听取修复师的理由，但不会代替别人表示同意。",
+          "document_ids": [],
+          "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+          "relationships": [
+            {
+              "target": "顾宁",
+              "relation": "经常合作的修复师",
+              "status": "current",
+              "period": "",
+              "basis": ""
+            }
+          ]
+        },
+        "location": "档案室",
+        "goals": [
+          "向顾宁确认今晚交接是否需要延后，并听取理由。"
+        ],
+        "unnoticed": [],
+        "presentation": {
+          "version": 1,
+          "base_sprite": null,
+          "default_outfit": null,
+          "outfits": []
+        }
+      },
+      {
+        "alias": "restorer",
+        "profile": {
+          "name": "顾宁",
+          "core": "你是修复师，担心匆忙交接会遗漏检查。你与程安都看重档案安全，只是对时间安排有分歧。你会主动提出可讨论的检查安排。",
+          "document_ids": [],
+          "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+          "relationships": [
+            {
+              "target": "程安",
+              "relation": "谨慎的合作同事",
+              "status": "current",
+              "period": "",
+              "basis": ""
+            }
+          ]
+        },
+        "location": "档案室",
+        "goals": [
+          "向程安提出先核对交接记录再决定时间。"
+        ],
+        "unnoticed": [],
+        "presentation": {
+          "version": 1,
+          "base_sprite": null,
+          "default_outfit": null,
+          "outfits": []
+        }
+      },
+      {
+        "alias": "23fea9f0-98d3-46a8-85cd-0ec1d0d6541e",
+        "profile": {
+          "name": "沈禾",
+          "core": "你是档案馆夜间保安，曾在一次未经确认的交接中误放人员进入档案室。你谨慎、直率，重视现场证据。你知道访客正在门厅等候，但尚未听到程安与顾宁的幕后商议。",
+          "document_ids": [],
+          "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+          "relationships": []
+        },
+        "location": "门厅",
+        "goals": [
+          "核对交接是否得到双方明确同意，并提醒他们不要让访客误以为传闻已经核实。"
+        ],
+        "unnoticed": [],
+        "presentation": {
+          "version": 1,
+          "base_sprite": null,
+          "default_outfit": null,
+          "outfits": []
+        }
+      }
+    ],
+    "player": {
+      "alias": "player",
+      "name": "访客",
+      "location": "门厅"
+    },
+    "speech": [],
+    "knowledge": [],
+    "narrative": {
+      "entry": "ebd5b6e7-bf8e-4a63-bcaf-e26c77f40930",
+      "nodes": [
+        {
+          "id": "ebd5b6e7-bf8e-4a63-bcaf-e26c77f40930",
+          "title": "闭馆前的协商",
+          "editor_position": {
+            "x": 0.0,
+            "y": 80.0
+          },
+          "text": "请编排本场开场内容。",
+          "observers": [
+            "archivist",
+            "restorer"
+          ],
+          "background": null,
+          "visual_mode": "stage",
+          "video": null,
+          "stage": null,
+          "objects": [],
+          "mode": "backstage",
+          "participants": [
+            "archivist",
+            "restorer"
+          ],
+          "entry_locations": [],
+          "opening": [
+            {
+              "id": "opening",
+              "kind": "narration",
+              "text": "闭馆前，程安与顾宁在档案室核对密封档案。访客尚未到场。",
+              "speaker": null,
+              "outfit": null,
+              "variant": null
+            }
+          ],
+          "direction": {
+            "version": 1,
+            "objective": "程安与顾宁确认档案已经准备交接，然后回到访客所在的门厅。",
+            "constraints": [],
+            "beats": [
+              {
+                "id": "ce9db7b9-1130-49cb-b3f6-25caca8c9863",
+                "title": "确认交接",
+                "objective": "程安向顾宁说明档案已经准备交接。",
+                "participants": [
+                  "archivist",
+                  "restorer"
+                ],
+                "constraints": [
+                  "不替玩家作决定，不将猜测表述为确认事实。"
+                ],
+                "completion": "程安在本轮明确说档案已经准备交接。",
+                "handoff": "continuous",
+                "max_segments": 3
+              }
+            ]
+          },
+          "ending": false
+        },
+        {
+          "id": "00930ee1-92e6-47f4-9597-0e8ae79c1377",
+          "title": "门厅会面",
+          "editor_position": null,
+          "text": "",
+          "observers": [
+            "player"
+          ],
+          "background": null,
+          "visual_mode": "stage",
+          "video": null,
+          "stage": null,
+          "objects": [],
+          "mode": "player",
+          "participants": [],
+          "entry_locations": [
+            {
+              "actor": "archivist",
+              "location": "门厅"
+            },
+            {
+              "actor": "restorer",
+              "location": "门厅"
+            }
+          ],
+          "opening": [
+            {
+              "id": "opening",
+              "kind": "narration",
+              "text": "你走进门厅，看见程安与顾宁正从档案室出来。",
+              "speaker": null,
+              "outfit": null,
+              "variant": null
+            }
+          ],
+          "direction": {
+            "version": 1,
+            "objective": "让程安、顾宁、沈禾围绕档案交接交换各自掌握的信息，并把公开还是封存的选择交给玩家。",
+            "constraints": [
+              "三人只能说出自己亲历或实际听闻的信息；不要替玩家选择；幕后讨论的细节只能由知情角色主动说出。"
+            ],
+            "beats": [
+              {
+                "id": "14e9ffe8-c940-4fac-8575-3f30e9404248",
+                "title": "门厅里的交接争议",
+                "objective": "程安说明档案已准备交接，顾宁提出来源核对的顾虑，沈禾从现场管理角度追问是否有双方明确同意，并请玩家表态。",
+                "participants": [
+                  "archivist",
+                  "restorer",
+                  "23fea9f0-98d3-46a8-85cd-0ec1d0d6541e"
+                ],
+                "constraints": [
+                  "不替玩家作决定，不将猜测表述为确认事实。"
+                ],
+                "completion": "三人至少交换了交接准备、核对疑虑与现场管理三种立场，且有人向玩家提出公开或封存的选择。",
+                "handoff": "after_beat",
+                "max_segments": 3
+              }
+            ]
+          },
+          "ending": false
+        },
+        {
+          "id": "f9dde4b5-1ecc-453b-abe7-3d1b5a20549c",
+          "title": "公开交接",
+          "editor_position": null,
+          "text": "",
+          "observers": [
+            "player",
+            "archivist",
+            "restorer",
+            "23fea9f0-98d3-46a8-85cd-0ec1d0d6541e"
+          ],
+          "background": null,
+          "visual_mode": "stage",
+          "video": null,
+          "stage": null,
+          "objects": [],
+          "mode": "player",
+          "participants": [],
+          "entry_locations": [
+            {
+              "actor": "archivist",
+              "location": "门厅"
+            },
+            {
+              "actor": "restorer",
+              "location": "门厅"
+            }
+          ],
+          "opening": [
+            {
+              "id": "opening",
+              "kind": "narration",
+              "text": "在你明确选择公开、程安与顾宁也表示同意后，三人在门厅打开交接记录。顾宁标出仍待核实的部分，沈禾把双方的公开决定记入值班簿。故事到此结束。",
+              "speaker": null,
+              "outfit": null,
+              "variant": null
+            }
+          ],
+          "direction": null,
+          "ending": true
+        },
+        {
+          "id": "6d76225c-0a74-4d4e-b55b-b83f12da2cde",
+          "title": "暂缓交接",
+          "editor_position": null,
+          "text": "",
+          "observers": [
+            "player",
+            "archivist",
+            "restorer",
+            "23fea9f0-98d3-46a8-85cd-0ec1d0d6541e"
+          ],
+          "background": null,
+          "visual_mode": "stage",
+          "video": null,
+          "stage": null,
+          "objects": [],
+          "mode": "player",
+          "participants": [],
+          "entry_locations": [
+            {
+              "actor": "archivist",
+              "location": "门厅"
+            },
+            {
+              "actor": "restorer",
+              "location": "门厅"
+            }
+          ],
+          "opening": [
+            {
+              "id": "opening",
+              "kind": "narration",
+              "text": "你决定先封存档案，等交接来源再核对一次。程安收回公开文件，顾宁列出待核查项目，沈禾记录了这次暂缓决定。故事到此结束。",
+              "speaker": null,
+              "outfit": null,
+              "variant": null
+            }
+          ],
+          "direction": null,
+          "ending": true
+        }
+      ],
+      "edges": [
+        {
+          "id": "65d7d45c-61d2-473c-b39b-31aad05dd267",
+          "source": "ebd5b6e7-bf8e-4a63-bcaf-e26c77f40930",
+          "target": "00930ee1-92e6-47f4-9597-0e8ae79c1377",
+          "label": "继续",
+          "trigger": "manual",
+          "condition": "",
+          "requires_holding": null
+        },
+        {
+          "id": "05e6d678-9a6f-4849-9020-56417d97f9e7",
+          "source": "00930ee1-92e6-47f4-9597-0e8ae79c1377",
+          "target": "f9dde4b5-1ecc-453b-abe7-3d1b5a20549c",
+          "label": "公开交接",
+          "trigger": "ai",
+          "condition": "玩家在听过三人的意见后明确要求公开这次交接的核对记录，且程安与顾宁都明确同意现在公开。只有玩家或 NPC 提议、尚未得到另一方同意时不得触发。",
+          "requires_holding": null
+        },
+        {
+          "id": "e024c506-09e7-4d1b-8610-2a59fe2ecc98",
+          "source": "00930ee1-92e6-47f4-9597-0e8ae79c1377",
+          "target": "6d76225c-0a74-4d4e-b55b-b83f12da2cde",
+          "label": "暂缓并封存",
+          "trigger": "ai",
+          "condition": "玩家在听过三人的意见后明确决定暂缓公开并封存这次交接材料，且程安与顾宁都明确接受暂缓。不能仅凭角色提出封存建议或玩家说“再想想”就触发。",
+          "requires_holding": null
+        }
+      ]
+    },
+    "item_world": null,
+    "image_assets": [],
+    "video_assets": []
+  },
+  "assets": {},
+  "documents": {}
+}
