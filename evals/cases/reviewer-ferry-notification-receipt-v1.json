@@ -1,0 +1,43 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-ferry-notification-receipt-v1",
+  "version": 1,
+  "scope": "Synthetic current-status contrast derived from the authorized ferry story; no real player content",
+  "defaults": {
+    "info": {
+      "profile": {"name": "林澈", "core": "你是渡口值班员，熟悉夜间停航通知。说话谨慎，会说明自己知道与尚未核实的事。", "world": "当代雾港，人物在码头候船亭。"},
+      "observations": [],
+      "scene_facts": {
+        "announcement": {"event_id": "announcement", "value": "渡口公告：遇强风停航，复航时间由值班员收到通知后公布。", "basis": "confirmed"}
+      },
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {"announcement": "渡口公告：遇强风停航，复航时间由值班员收到通知后公布。"},
+    "player_request": "林澈，你们三人先聊聊，别替值班员宣布复航时间。",
+    "intent": {"act": "speak", "purpose": "回应停航话题，只谈自己知道的事。", "deception": false, "addressee_id": "shen"},
+    "cast": [{"id": "npc", "name": "林澈"}, {"id": "shen", "name": "沈舟"}]
+  },
+  "cases": [
+    {
+      "case_id": "notification-not-yet-arrived",
+      "pair_id": "current-notification-status",
+      "factor": "unconfirmed_reception",
+      "variant": "asserted",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "条件性公告不证明值班员此刻没有收到通知。",
+      "speech": {"text": "公告写着遇强风停航，复航时间由值班员收到通知后公布。我就是值班员，通知还没到，所以我不会报时间。", "claims": [{"mode": "fact", "text": "通知还没到", "source_id": "announcement", "quote": "复航时间由值班员收到通知后公布"}]}
+    },
+    {
+      "case_id": "notification-status-unknown",
+      "pair_id": "current-notification-status",
+      "factor": "unconfirmed_reception",
+      "variant": "epistemic",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "公告支持公布条件，角色只陈述未掌握当前通知状态。",
+      "speech": {"text": "公告写着遇强风停航，复航时间由值班员收到通知后公布。我暂时无法确认有没有新的通知，不会替大家报一个时间。", "claims": [{"mode": "fact", "text": "复航时间由值班员收到通知后公布", "source_id": "announcement", "quote": "复航时间由值班员收到通知后公布"}]}
+    }
+  ]
+}

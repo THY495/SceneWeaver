@@ -9,6 +9,7 @@ export type OpeningBlock = {
   kind: 'narration' | 'dialogue'
   text: string
   speaker?: string | null
+  target?: string | null
   outfit?: string | null
   variant?: string | null
 }
@@ -25,6 +26,7 @@ export function OpeningEditor({
   onChange,
   objects,
   directed = false,
+  onConfigureObservers,
 }: {
   directed?: boolean
   objects?: SceneObject[]
@@ -37,6 +39,7 @@ export function OpeningEditor({
   people: StagePerson[]
   request: (path: string, init?: RequestInit) => Promise<unknown>
   onChange: (blocks: OpeningBlock[]) => void
+  onConfigureObservers?: () => void
 }) {
   const [selected, setSelected] = useState('')
   const list = blocks || [{ id: 'opening', kind: 'narration' as const, text: legacy }]
@@ -74,6 +77,14 @@ export function OpeningEditor({
         选择下方段落，在右侧编辑。
         {directed ? '开场后按 AI 互动编排组织角色演出，玩家可以介入。' : '开场播放完毕后进入自由互动。'}
       </small>
+      {people.some((person) => !actors.some((actor) => actor.alias === person.id)) && (
+        <p>
+          有在场人物尚未加入开场知情名单，因此不能选为开场对白人物。{' '}
+          <button type="button" onClick={onConfigureObservers}>
+            设置参与与知情
+          </button>
+        </p>
+      )}
       <div className="opening-layout">
         <nav aria-label="开场积木">
           {list.map((b, i) => (
@@ -141,7 +152,14 @@ export function OpeningEditor({
               说话人物
               <select
                 value={block.speaker || ''}
-                onChange={(e) => edit({ speaker: e.target.value, outfit: null, variant: null })}
+                onChange={(e) =>
+                  edit({
+                    speaker: e.target.value,
+                    target: block.target === e.target.value ? null : block.target,
+                    outfit: null,
+                    variant: null,
+                  })
+                }
               >
                 <option value="" disabled>
                   选择人物
@@ -152,6 +170,22 @@ export function OpeningEditor({
                   </option>
                 ))}
               </select>
+            </label>
+          )}
+          {block.kind === 'dialogue' && (
+            <label>
+              说给谁听
+              <select value={block.target || ''} onChange={(e) => edit({ target: e.target.value || null })}>
+                <option value="">未指定（在场人都能听见）</option>
+                {actors
+                  .filter((a) => a.alias !== block.speaker)
+                  .map((a) => (
+                    <option key={a.alias} value={a.alias}>
+                      {a.name}
+                    </option>
+                  ))}
+              </select>
+              <small>只表示这句对白面向谁；其他知情者仍能听见。</small>
             </label>
           )}
           {block.kind === 'dialogue' && (

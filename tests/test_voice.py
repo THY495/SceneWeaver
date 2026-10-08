@@ -381,9 +381,10 @@ def test_stream_receipts_idempotency_and_independent_caption_delivery(app, runti
 
             assert s.get(VoiceDelivery, (eid, player)).text_visible
             timeline = story_timing(s, s.get(Story, story))
-            assert timeline["playbacks"][0]["first_audio_schedule_receipt_at"] == timing[
-                "first_audio_schedule_receipt_at"
-            ]
+            assert (
+                timeline["playbacks"][0]["first_audio_schedule_receipt_at"]
+                == timing["first_audio_schedule_receipt_at"]
+            )
             charges = list(s.scalars(select(Usage).where(Usage.role == "tts")))
             assert len(charges) == 1 and charges[0].cost > 0 and charges[0].reserved == 0
 
@@ -419,8 +420,13 @@ def test_new_page_explicit_replay_takes_over_only_inactive_old_playback(app, run
         pid = first.json()["id"]
         # A second tab cannot interrupt a page that is still sending receipts.
         blocked = prepare(
-            client, player, task, eid,
-            request_id="fresh-replay", replay=True, client_id="new-page",
+            client,
+            player,
+            task,
+            eid,
+            request_id="fresh-replay",
+            replay=True,
+            client_id="new-page",
         )
         assert blocked.status_code == 409
         with db.session.begin() as s:
@@ -430,8 +436,13 @@ def test_new_page_explicit_replay_takes_over_only_inactive_old_playback(app, run
                 "last_receipt_at": (now() - timedelta(seconds=5)).isoformat(),
             }
         takeover = prepare(
-            client, player, task, eid,
-            request_id="inactive-replay", replay=True, client_id="new-page",
+            client,
+            player,
+            task,
+            eid,
+            request_id="inactive-replay",
+            replay=True,
+            client_id="new-page",
         )
         assert takeover.status_code == 200
         with db.session() as s:
@@ -475,6 +486,39 @@ def test_tts_failure_never_counts_as_silence_or_audio_completion(app, runtime, d
         assert client.get(f"/api/voice/sessions/{player}/utterances").json()["utterances"][0]["chunks"] == [
             "你好，今晚我们先聊聊。"
         ]
+
+
+def test_partial_playback_records_close_metadata_and_settles_once_without_retry(app, runtime, db, config):
+    from websockets.exceptions import ConnectionClosedError
+    from websockets.frames import Close
+
+    calls = []
+
+    async def broken(text, voice):
+        calls.append(1)
+        yield b"\x00\x01" * 20
+        raise ConnectionClosedError(Close(1011, "private-reason"), Close(1000, "secret"), True)
+
+    app.state.voice.pcm = broken
+    with TestClient(app) as client:
+        _, _, player, task, eid = setup(client, runtime, db, config)
+        pid = prepare(client, player, task, eid).json()["id"]
+        client.post(f"/api/voice/playbacks/{pid}/audio")
+        state = client.get(f"/api/voice/playbacks/{pid}").json()
+        assert state["status"] == "failed" and state["stream_done"] is False
+        assert state["sent_samples"] == 20 and calls == [1]
+        assert state["timings"]["failure"] == {
+            "failure_type": "ConnectionClosedError",
+            "failure_phase": "receive_audio",
+            "received_close_code": 1011,
+            "sent_close_code": 1000,
+            "received_close_first": True,
+        }
+        assert state["timings"]["error"] == "ConnectionClosedError"
+        assert "private-reason" not in json.dumps(state) and "secret" not in json.dumps(state)
+        with db.session() as store:
+            rows = list(store.scalars(select(Usage).where(Usage.role == "tts")))
+            assert len(rows) == 1 and rows[0].reserved == 0 and rows[0].status == "estimated_failed"
 
 
 def test_shared_daily_budget_blocks_tts(app, runtime, db, config):

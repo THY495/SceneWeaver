@@ -33,6 +33,7 @@ async def prepare_candidate[Audio](
     *,
     audio_wait_seconds: float = 3,
     discard_audio: Callable[[Audio], Awaitable[None]] | None = None,
+    synthesize_after_review: bool = False,
 ) -> PreparedCandidate[Audio]:
     """Run approval and optional TTS together; caller owns budget and publication.
 
@@ -44,7 +45,7 @@ async def prepare_candidate[Audio](
         raise ValueError("Audio wait must be positive")
     if not is_current():
         return PreparedCandidate(identity, "expired")
-    audio_task = asyncio.create_task(synthesize()) if synthesize else None
+    audio_task = asyncio.create_task(synthesize()) if synthesize and not synthesize_after_review else None
     keep_audio = False
     try:
         accepted = await review()
@@ -56,6 +57,8 @@ async def prepare_candidate[Audio](
             return PreparedCandidate(
                 identity, "rejected", audio_status="discarded" if audio_task else "not_requested"
             )
+        if synthesize and synthesize_after_review:
+            audio_task = asyncio.create_task(synthesize())
         if not audio_task:
             return PreparedCandidate(identity, "approved")
         try:

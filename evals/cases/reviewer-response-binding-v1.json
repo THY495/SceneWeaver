@@ -1,0 +1,40 @@
+{
+  "suite_id": "ferry-task-response-binding",
+  "version": 1,
+  "defaults": {
+    "actor_id": "npc",
+    "cast": [{"id": "npc", "name": "沈舟"}, {"id": "player", "name": "旅人"}],
+    "info": {"profile": {"name": "沈舟", "core": "你是码头值班员，做事耐心，坚持区分公告、传闻与实际见闻。"}, "observations": []},
+    "intent": {"act": "speak", "purpose": "回应旅人实际发言", "addressee_id": "player"},
+    "sources": {"profile:npc": "你是码头值班员，做事耐心，坚持区分公告、传闻与实际见闻。"},
+    "player_request": "沈舟，你在码头做什么工作？",
+    "director_assignment": {"objective": "回应旅人实际发言", "addressees": ["player"], "response_turn_policy": "answer_only",
+      "response_utterance": {"event_id": "job-question", "speaker_id": "player", "text": "沈舟，你在码头做什么工作？"}}
+  },
+  "cases": [
+    {"case_id": "irrelevant-weather", "expected_accept": false, "expected_response_status": "not_addressed", "expected_unsupported_check_count": 0,
+      "speech": {"text": "今天看着要变天，就多留了个心眼。", "claims": []},
+      "rationale": "原实测最终残句没有回应职业。情绪性天气猜测在本例不作为确定外部事实；拒绝应因实际回应缺失，不伪装成事实不支持。"},
+    {"case_id": "direct-profile-answer", "expected_accept": true, "expected_response_status": "responded",
+      "speech": {"text": "我在码头做值班员。", "claims": [{"text": "我在码头做值班员", "source_id": "profile:npc", "quote": "你是码头值班员", "mode": "fact"}]}},
+    {"case_id": "direct-refusal", "expected_accept": true, "expected_response_status": "refused",
+      "speech": {"text": "我不想谈自己在码头的工作。", "claims": []}},
+    {"case_id": "current-unknown", "expected_accept": true, "expected_response_status": "unknown", "player_request": "公告全文写了什么？",
+      "director_assignment": {"objective": "回应旅人实际发言", "addressees": ["player"], "response_turn_policy": "answer_only",
+        "response_utterance": {"event_id": "notice-question", "speaker_id": "player", "text": "公告全文写了什么？"}},
+      "speech": {"text": "公告的全文，我现在无法核实。", "claims": []}},
+    {"case_id": "direct-defer", "expected_accept": true, "expected_response_status": "deferred",
+      "speech": {"text": "我想稍后再谈我的工作。", "claims": []}},
+    {"case_id": "irrelevant-unknown", "expected_accept": false, "expected_response_status": "not_addressed", "expected_unsupported_check_count": 0,
+      "speech": {"text": "我不知道复航时间。", "claims": []},
+      "rationale": "职业问题不能被关于复航时间的未知替代；允许未知不意味着任意未知都回应了当前发言。"},
+    {"case_id": "answer-with-invented-history", "expected_accept": false, "expected_response_status": "responded",
+      "speech": {"text": "我在码头做值班员，刚才已经逐页读完今晚的登记册。",
+        "claims": [{"text": "我在码头做值班员", "source_id": "profile:npc", "quote": "你是码头值班员", "mode": "fact"}]},
+      "rationale": "正确回答主问题不豁免附带的具体过去经历；阅读未提供登记册没有来源。"},
+    {"case_id": "statement-response", "expected_accept": true, "expected_response_status": "responded", "player_request": "我想暂时留在候亭里等消息。",
+      "director_assignment": {"objective": "回应旅人实际发言", "addressees": ["player"], "response_turn_policy": "answer_only",
+        "response_utterance": {"event_id": "player-preference", "speaker_id": "player", "text": "我想暂时留在候亭里等消息。"}},
+      "speech": {"text": "那就照你的意思。想聊的时候，叫我一声。", "claims": []}}
+  ]
+}

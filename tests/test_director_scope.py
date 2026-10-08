@@ -96,7 +96,7 @@ async def test_frozen_scene_scope_and_actual_planner_install(db, config, runtime
         "after_plan": "yield_player",
         "remaining_work": [],
         "reason": "先询问",
-        "jobs": [{"id": "j", "actor": actors[0], "objective": "询问"}],
+        "jobs": [{"kind": "free", "id": "j", "actor": actors[0], "objective": "询问"}],
     }
 
     async def plan_with_concurrent_ack(*_args, **_kwargs):
@@ -120,11 +120,14 @@ async def test_frozen_scene_scope_and_actual_planner_install(db, config, runtime
         return proposal
 
     provider = SimpleNamespace(
-        chat=AsyncMock(side_effect=plan_with_concurrent_ack) if valid_evidence else AsyncMock(return_value=proposal)
+        chat=AsyncMock(side_effect=plan_with_concurrent_ack)
+        if valid_evidence
+        else AsyncMock(return_value=proposal)
     )
-    services = SimpleNamespace(db=db, runtime=runtime, provider=provider)
+    services = SimpleNamespace(db=db, config=config, runtime=runtime, provider=provider)
     installed = await prepare_scene_plan(services, task, turn)
     assert installed["revision"] == 1 and installed["plan"]["jobs"][0]["actor"] == actors[0]
+    assert installed["handoff_policy"] == "after_beat"
     if valid_evidence:
         with db.session() as s:
             assert installed["world_seq"] == s.get(Story, sid).seq
@@ -189,8 +192,23 @@ async def test_legacy_scene_does_not_call_director(db, config, runtime, fake):
     provider.chat.assert_not_called()
 
 
-@pytest.mark.parametrize("split_plan", [False, True])
-async def test_directed_player_turn_runs_actual_actor_pipeline(db, config, runtime, fake, split_plan):
+@pytest.mark.parametrize(
+    "split_plan,early_question",
+    [
+        (False, None),
+        (True, None),
+        (False, "ordinary"),
+        (True, "ordinary"),
+        (False, "action"),
+        (True, "action"),
+        (False, "orphan"),
+        (True, "orphan"),
+        (True, "npc_reply"),
+    ],
+)
+async def test_directed_player_turn_runs_actual_actor_pipeline(
+    db, config, runtime, fake, split_plan, early_question
+):
     """Only the provider is simulated; dispatch, context, review and publication are real."""
     from chatbot.agents import Agents
 
@@ -223,6 +241,7 @@ async def test_directed_player_turn_runs_actual_actor_pipeline(db, config, runti
                                             "objective": "依次发表意见",
                                             "participants": ["a", "b", "c"],
                                             "completion": "三人表达后等待玩家",
+                                            "max_segments": 4 if early_question == "npc_reply" else 3,
                                         }
                                     ],
                                 },
@@ -241,6 +260,7 @@ async def test_directed_player_turn_runs_actual_actor_pipeline(db, config, runti
                 "reason": "三人讨论后交还玩家",
                 "jobs": [
                     {
+                        "kind": "free",
                         "id": str(i),
                         "actor": actor,
                         "objective": "表达意见",
@@ -254,6 +274,8 @@ async def test_directed_player_turn_runs_actual_actor_pipeline(db, config, runti
                 "act": "speak",
                 "purpose": "回应",
                 "wait_for_player": False,
+                # The accepted final wording must override this stale plan flag.
+                "awaiting_player_action": early_question == "ordinary",
                 "source_ids": [],
                 "deception": False,
                 "retrieval": "context",
@@ -267,8 +289,45 @@ async def test_directed_player_turn_runs_actual_actor_pipeline(db, config, runti
             "director_progress": {"status": "not_met", "reason": "等待玩家回应", "evidence": []},
         }
     )
+    if early_question:
+        first_line = "请先作决定，我再继续说。" if early_question == "action" else "你想先听哪部分？"
+        if early_question in {"orphan", "npc_reply"}:
+            first_line = "你怎么看？"
+            # The middle actor asks an earlier speaker who has no reply slot.
+            # Only that candidate is repaired, then the third actor still speaks.
+            lines = iter(["我愿意先听听。", first_line, "我暂时没有其它意见。", "我也愿意听听。"])
+        else:
+            lines = iter([first_line, "我愿意先听听大家的意见。", "我也愿意听听。"])
+        fake.replies["dialogue"] = lambda messages: {
+            "text": next(lines),
+            "claims": [],
+        }
+
+        def delivery(messages):
+            question = json.loads(messages[-1]["content"])["candidate"] == first_line
+            return {
+                "accepted": True,
+                "issues": [],
+                "checks": [],
+                "delivery": {
+                    "expects_reply": question,
+                    "requires_player_action": question and early_question == "action",
+                    "addressee_id": (actors[0] if question else actors[1])
+                    if early_question in {"orphan", "npc_reply"}
+                    else player,
+                    "response_kind": "answer",
+                    "remaining_request": None,
+                },
+            }
+
+        fake.replies["actor_review"] = delivery
     if split_plan:
         first_plan = fake.replies["director"]
+        suffix = [{**first_plan["jobs"][2], "depends_on": []}]
+        if early_question == "npc_reply":
+            suffix.append(
+                {"kind": "free", "id": "reply", "actor": actors[0], "objective": "回应第二人的问句", "depends_on": ["2"]}
+            )
         plans = iter(
             [
                 {
@@ -280,7 +339,7 @@ async def test_directed_player_turn_runs_actual_actor_pipeline(db, config, runti
                 # Even if the model asks to continue, the author's three-part cap wins.
                 {
                     **first_plan,
-                    "jobs": [{**first_plan["jobs"][2], "depends_on": []}],
+                    "jobs": suffix,
                     "after_plan": "continue_scene",
                     "remaining_work": ["继续讨论"],
                 },
@@ -290,10 +349,43 @@ async def test_directed_player_turn_runs_actual_actor_pipeline(db, config, runti
     runtime.submit(player, config.workspace_owner, "请大家谈谈意见。", "pipeline-turn")
     task = runtime.claim("test")
     result = await Agents(db, config, runtime, fake).respond(task)
-    assert result["actor_ids"] == actors
-    assert len({segment["event_id"] for segment in result["segments"]}) == 3
+    action_wait = early_question == "action"
+    expected_actors = [*actors, actors[0]] if early_question == "npc_reply" else actors
+    assert result["actor_ids"] == (actors[:1] if action_wait else expected_actors)
+    assert len({segment["event_id"] for segment in result["segments"]}) == (
+        1 if action_wait else len(expected_actors)
+    )
     roles = [role for role, _, _ in fake.calls]
-    assert roles.count("director") == (2 if split_plan else 1)
-    assert roles.count("director_assignment") == 3
+    assert roles.count("director") == (2 if split_plan and not action_wait else 1)
+    assert roles.count("director_assignment") == (1 if action_wait else len(expected_actors))
     assert roles.count("director_progress") == 1
     assert all(segment["intent"].get("remaining_request", "") == "" for segment in result["segments"])
+    assert result["director_plan_complete"] is not action_wait
+    unresolved_suffix = split_plan and early_question == "orphan"
+    assert result["interaction_complete"] is (not action_wait and not unresolved_suffix)
+    if early_question in {"ordinary", "action"}:
+        assert result["stop_reason"] == "player_turn"
+        assert result["pending_player_question_ids"] == [result["segments"][0]["event_id"]]
+        assert result["segments"][0]["intent"]["expects_reply"] is True
+        assert result["segments"][0]["intent"]["awaiting_player_action"] is action_wait
+        assert "director_handoff" in result
+    if early_question == "orphan" and not split_plan:
+        assert roles.count("dialogue") == 4
+        assert roles.count("actor_review") == 4
+        assert "你怎么看？" not in result["answer"]
+        assert result["pending_reply_ids"] == []
+        assert result["segments"][1]["text"] == "我暂时没有其它意见。"
+    if unresolved_suffix:
+        # Free continuation capacity allowed a question, but this fake director
+        # deliberately failed to schedule its reply. Never call that complete.
+        assert roles.count("dialogue") == 3
+        assert result["pending_reply_ids"] == [result["segments"][1]["event_id"]]
+    if early_question == "npc_reply":
+        assert roles.count("dialogue") == 4
+        assert result["pending_reply_ids"] == []
+        assert result["segments"][3]["intent"]["reply_to"] == result["segments"][1]["event_id"]
+        director_calls = [messages for role, messages, _ in fake.calls if role == "director"]
+        common = json.loads(json.loads(director_calls[1][1]["content"])["public_context"])
+        assert common["exchanges"][0]["question_id"] == result["segments"][1]["event_id"]
+        assert common["exchanges"][0]["target_id"] == actors[0]
+        assert common["exchanges"][0]["status"] == "open"

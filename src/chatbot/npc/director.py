@@ -8,9 +8,12 @@ from sqlalchemy import select
 from ..directing import DirectorPlan, SceneDirection
 from ..director_planning import propose_plan
 from ..director_state import ack_only_world_advance, install_plan
+from ..observability.timing import annotate
 from ..observations import perceived_cast, visible_records
 from ..runtime import StaleTask
 from ..storage import Conversation, ExperimentInitial, Operation, Story
+from .director_context import bounded_public_context, common_events, event_view, reply_links
+from .exchange_requirement import npc_exchange_observed
 
 
 @dataclass(frozen=True)
@@ -63,7 +66,10 @@ def snapshot(s, task, turn, *, beat_id=None):
     mapping = origin.receipt["actors"]
     for beat in direction.beats:
         try:
+            beat.role_focus = {mapping[alias]: focus for alias, focus in beat.role_focus.items()}
             beat.participants = [mapping[a] for a in beat.participants]
+            if beat.direct_response_actor:
+                beat.direct_response_actor = mapping[beat.direct_response_actor]
         except KeyError:
             raise ValueError("导演段落引用的角色未实例化。") from None
     progress = state.get("direction_progress", {})
@@ -103,28 +109,18 @@ def snapshot(s, task, turn, *, beat_id=None):
         if all(person in view for view in cast_views.values())
     ]
     # Exact intersection avoids leaking a full quote to a partial listener.
-    views = [
-        {
-            r.id: (r.kind, r.actor_id, r.text)
-            for r in [
-                row
-                for row in visible_records(s, a.id, last=41)
-                if not (row.task_id == task.id and row.payload.get("acknowledgement"))
-            ][-40:]
-        }
+    perceived_events = [
+        [
+            row
+            for row in visible_records(s, a.id, last=41)
+            if not (row.task_id == task.id and row.payload.get("acknowledgement"))
+        ][-40:]
         for a in actors
     ]
-    shared = []
-    if views:
-        for eid, value in views[0].items():
-            if all(view.get(eid) == value for view in views[1:]):
-                shared.append(dict(event_id=eid, kind=value[0], actor_id=value[1], text=value[2]))
-
-    def public_context():
-        return json.dumps({"cast": cast, "events": shared}, ensure_ascii=False)
-
-    while shared and len(public_context()) > 15000:
-        shared.pop(0)
+    links = reply_links(s, {r.id for records in perceived_events for r in records})
+    views = [{r.id: event_view(r, links) for r in records} for records in perceived_events]
+    public_context = bounded_public_context(cast, common_events(views))
+    shared = json.loads(public_context)["events"]
     # Highlight only a current input already in the common perception boundary.
     # Never copy task.payload['text']: it may contain a private/partial utterance.
     current_event = next(
@@ -146,24 +142,36 @@ def snapshot(s, task, turn, *, beat_id=None):
         selected.id,
         {a.id for a in actors},
         visible_to,
-        public_context(),
+        public_context,
         not remaining,
         current_event,
     )
 
 
-async def prepare_scene_plan(services, task, turn, *, beat_id=None, max_jobs=6, recovery_reason=""):
+async def prepare_scene_plan(
+    services, task, turn, *, beat_id=None, max_jobs=6, recovery_reason="", recovery_hint="", recovery_notice=None
+):
     """Return None for legacy scenes; install a bounded proposal for directed ones."""
     services.runtime.check(task.id, task.lease_version)
     with services.db.session() as s:
         frozen = snapshot(s, task, turn, beat_id=beat_id)
         previous = s.get(Operation, f"{task.id}:director-ledger")
         expected_revision = previous.payload["revision"] if previous else 0
+        feedback_status = "used" if recovery_notice else "absent"
+        if recovery_notice and (
+            recovery_reason != "assignment_rejected"
+            or not recovery_notice.current(s, task, turn, previous.payload if previous else None)
+        ):
+            recovery_notice = None
+            feedback_status = "stale"
+        if recovery_reason:
+            annotate(director_recovery_feedback=feedback_status)
         completed_jobs = []
         for row in s.scalars(select(Operation).where(Operation.id.startswith(f"{task.id}:director-ledger"))):
             data = row.payload
             if frozen is None or data.get("plan", {}).get("beat_id") != frozen.beat_id:
                 continue
+            completed_jobs.extend(data.get("inherited_jobs", []))
             for job in data.get("plan", {}).get("jobs", []):
                 candidate = data.get("candidates", {}).get(job["id"], {})
                 if candidate.get("status") == "committed" and candidate.get("event_id"):
@@ -174,6 +182,7 @@ async def prepare_scene_plan(services, task, turn, *, beat_id=None, max_jobs=6, 
                             "event_id": candidate["event_id"],
                         }
                     )
+        completed_jobs = list({job["event_id"]: job for job in completed_jobs}.values())
         if recovery_reason and previous and previous.payload.get("recovery_count", 0) >= 1:
             raise StaleTask("本轮导演重规划次数已用完。")
     if frozen is None:
@@ -183,6 +192,8 @@ async def prepare_scene_plan(services, task, turn, *, beat_id=None, max_jobs=6, 
     proposal_direction = frozen.direction.model_copy(deep=True)
     selected = next(b for b in proposal_direction.beats if b.id == frozen.beat_id)
     selected.max_segments = min(selected.max_segments, max_jobs)
+    if task.kind == "npc_step":
+        selected.npc_exchange_required = False  # A microstep is not a complete authored performance.
     if task.payload.get("game_backstage"):
         # Legacy authoring may say "handoff to player" although no player is here.
         selected.handoff = "continuous"
@@ -190,14 +201,23 @@ async def prepare_scene_plan(services, task, turn, *, beat_id=None, max_jobs=6, 
         selected.objective = "回应当前玩家的追问或行动，不重复已完成段落，不强行新增剧情。"
         selected.completion = "回应本次追问后交还玩家。"
         selected.handoff = "after_beat"
+        selected.npc_exchange_required = False
     required_recovery_actors = (
         pending_recovery_actors(previous.payload if previous else None, frozen.eligible, max_jobs)
         if recovery_reason in {"assignment_rejected", "draft_rejected"}
         else []
     )
+    direct = None
 
-    def same_scope(s):
+    def same_scope(s, *, lock_actor=False):
+        if recovery_notice and not recovery_notice.installed_current(s, task, turn, lock_actor=lock_actor):
+            return False
         live = snapshot(s, task, turn, beat_id=frozen.beat_id)
+        if direct is not None:
+            from .direct_response import compile_direct_response
+
+            if compile_direct_response(services, task, turn, frozen, session=s) != direct:
+                return False
         return live == frozen or (
             live is not None
             and replace(live, world_seq=frozen.world_seq) == frozen
@@ -209,25 +229,61 @@ async def prepare_scene_plan(services, task, turn, *, beat_id=None, max_jobs=6, 
         with services.db.session() as s:
             return same_scope(s)
 
+    from .beat_reuse import consume_frame, resume_frame
+
+    reuse = None
+    if not previous and not frozen.finished:
+        reuse = await resume_frame(
+            services, task, turn, frozen, max_jobs=max_jobs, recovering=bool(recovery_reason)
+        )
+    from .direct_response import compile_direct_response
+
+    direct = compile_direct_response(
+        services, task, turn, frozen, previous=previous, recovering=bool(recovery_reason)
+    ) if reuse is None else None
     plan = (
-        DirectorPlan(beat_id=frozen.beat_id, reason="本场互动段落已完成，交还玩家。")
-        if frozen.finished and task.payload.get("autonomous")
-        else await propose_plan(
-            services.provider,
-            task.id,
-            proposal_direction,
-            frozen.beat_id,
-            scene_revision=f"{frozen.node_id}:{frozen.entry_event_id}:{frozen.world_seq}",
-            public_context=frozen.public_context,
-            current_player_event_id=frozen.current_player_event_id,
-            completed_jobs=completed_jobs,
-            required_recovery_actors=required_recovery_actors,
-            eligible=frozen.eligible,
-            visible_to=frozen.visible_to,
-            is_current=current,
-            recovery_reason=recovery_reason,
+        reuse["plan"]
+        if reuse is not None
+        else (
+            direct if direct is not None else
+            DirectorPlan(beat_id=frozen.beat_id, reason="本场互动段落已完成，交还玩家。")
+            if frozen.finished and task.payload.get("autonomous")
+            else await propose_plan(
+                services.provider,
+                task.id,
+                proposal_direction,
+                frozen.beat_id,
+                scene_revision=f"{frozen.node_id}:{frozen.entry_event_id}:{frozen.world_seq}",
+                public_context=frozen.public_context,
+                current_player_event_id=frozen.current_player_event_id,
+                completed_jobs=completed_jobs,
+                required_recovery_actors=required_recovery_actors,
+                npc_exchange_observed=npc_exchange_observed(
+                    selected,
+                    json.loads(frozen.public_context)["events"],
+                    {job["event_id"] for job in completed_jobs},
+                ),
+                eligible=frozen.eligible,
+                visible_to=frozen.visible_to,
+                is_current=current,
+                recovery_reason=recovery_reason,
+                recovery_hint=recovery_hint,
+                recovery_feedback=recovery_notice.notice if recovery_notice else None,
+                grounded_responses=getattr(
+                    getattr(services, "config", None), "role_assignment_authorization", "semantic"
+                )
+                == "grounded_response",
+            )
         )
     )
+    def on_install(s):
+        if reuse:
+            consume_frame(s, task, turn, frozen, reuse)
+        if direct is not None:
+            s.add(Operation(id=f"{task.id}:direct-response-frame", task_id=task.id,
+                            payload={"plan_revision": expected_revision + 1,
+                                     "actor_id": direct.jobs[0].actor, "source_id": frozen.current_player_event_id}))
+
     return install_plan(
         services.db,
         task,
@@ -235,7 +291,11 @@ async def prepare_scene_plan(services, task, turn, *, beat_id=None, max_jobs=6, 
         frozen.world_seq,
         plan,
         expected_revision=expected_revision,
-        validate_scope=same_scope,
+        validate_scope=lambda s: same_scope(s, lock_actor=True),
         recovery_reason=recovery_reason,
         allow_ack_advance=True,
+        handoff_policy=selected.handoff,
+        segment_capacity=selected.max_segments,
+        inherited_jobs=reuse["inherited_jobs"] if reuse else None,
+        on_install=on_install if reuse or direct is not None else None,
     )

@@ -37,6 +37,9 @@ async def generate_acknowledgement(agents, task):
     try:
         with agents.db.session() as s:
             player = s.get(Conversation, task.session_id)
+            live_task = s.get(Task, task.id)
+            if not live_task or live_task.payload.get("acknowledgement_superseded"):
+                return
             if s.scalar(
                 select(SceneRecord.id).where(
                     SceneRecord.story_id == player.story_id,
@@ -150,6 +153,9 @@ async def generate_acknowledgement(agents, task):
             story = s.scalar(select(Story).where(Story.id == player.story_id).with_for_update())
             current = s.get(Conversation, player.id)
             active_actor = s.get(Conversation, actor.id)
+            live_task = s.get(Task, task.id)
+            if not live_task or live_task.payload.get("acknowledgement_superseded"):
+                return
             if story.seq != world_seq or current.epoch != task.epoch or active_actor.revision != revision:
                 return
             if s.scalar(

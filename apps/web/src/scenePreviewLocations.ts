@@ -62,3 +62,19 @@ export function scenePreviewLocations(graph: Narrative, actors: Actor[], selecte
   for (const entry of nodes.get(selected)?.entry_locations || []) fallback.set(entry.actor, entry.location)
   return { locations: states.get(selected) || fallback, ambiguous: ambiguous.get(selected) || [] }
 }
+
+/** An explicit stage list does not auto-draw people who share the player's world location. */
+export function unstagedColocatedActors(
+  actors: { alias: string; name: string }[],
+  player: string,
+  locations: Locations,
+  stage?: { actor: string }[] | null,
+) {
+  if (stage == null) return []
+  const place = locations.get(player)
+  if (!place) return []
+  const drawn = new Set(stage.map((slot) => slot.actor))
+  return actors.filter(
+    (actor) => actor.alias !== player && locations.get(actor.alias) === place && !drawn.has(actor.alias),
+  )
+}

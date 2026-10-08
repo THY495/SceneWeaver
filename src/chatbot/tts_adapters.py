@@ -6,13 +6,14 @@ import json
 import re
 import time
 import uuid
-from contextlib import asynccontextmanager
+from contextlib import aclosing, asynccontextmanager
 from dataclasses import dataclass
 
 from websockets.asyncio.client import connect
 
 from .providers import ProviderError
 from .tts_connections import ConnectionLease
+from .tts_diagnostics import failure_fields
 
 
 @dataclass(frozen=True)
@@ -103,10 +104,28 @@ class QwenAudioTTS:
             async with factory() as ws:
                 yield ConnectionLease(None, ws, "")
 
+    async def warm(self):
+        """Open one idle connection without submitting text or incurring TTS usage."""
+        if self.connections is None:
+            return False
+        async with self.connection() as lease:
+            lease.reusable = True
+        return True
+
     async def stream(self, request):
+        self.timings = {"phase": "connect"}
+        try:
+            async with aclosing(self._stream(request)) as source:
+                async for packet in source:
+                    yield packet
+            self.timings["phase"] = "completed"
+        except Exception as exc:
+            self.timings.update(failure_fields(exc, self.timings["phase"]))
+            raise
+
+    async def _stream(self, request):
         task = str(uuid.uuid4())
         start = time.monotonic()
-        self.timings = {}
 
         def mark(name):
             self.timings.setdefault(name, round((time.monotonic() - start) * 1000, 1))
@@ -122,6 +141,7 @@ class QwenAudioTTS:
             ws = lease.socket
             mark("connection_ready_ms")
             self.timings["connection_reused"] = lease.reused
+            self.timings["phase"] = "submit_task"
             await ws.send(
                 message(
                     "run-task",
@@ -143,6 +163,7 @@ class QwenAudioTTS:
             )
             started = False
             while True:
+                self.timings["phase"] = "receive_audio" if started else "await_start"
                 waiting = time.monotonic()
                 try:
                     event = await asyncio.wait_for(ws.recv(), 20)
@@ -162,6 +183,7 @@ class QwenAudioTTS:
                     self.timings["last_pcm_ms"] = round((time.monotonic() - start) * 1000, 1)
                     consumed = time.monotonic()
                     try:
+                        self.timings["phase"] = "deliver_audio"
                         yield event
                     finally:
                         self.timings["consumer_hold_ms"] = round(
@@ -176,6 +198,7 @@ class QwenAudioTTS:
                 if kind == "task-started" and not started:
                     mark("provider_task_ready_ms")
                     started = True
+                    self.timings["phase"] = "submit_text"
                     await ws.send(message("continue-task", {"input": {"text": request.text}}))
                     await ws.send(message("finish-task", {"input": {}}))
                     mark("text_submitted_ms")

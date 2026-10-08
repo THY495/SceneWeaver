@@ -62,6 +62,7 @@ class OpeningBlock(BaseModel):
     kind: Literal["narration", "dialogue"]
     text: str = Field(min_length=1, max_length=4000)
     speaker: str | None = Field(default=None, min_length=1, max_length=80)
+    target: str | None = Field(default=None, min_length=1, max_length=80)
     outfit: str | None = Field(default=None, min_length=1, max_length=80)
     variant: str | None = Field(default=None, min_length=1, max_length=80)
 
@@ -71,6 +72,10 @@ class OpeningBlock(BaseModel):
             raise ValueError("固定对白必须指定人物，旁白不能指定说话者。")
         if self.kind != "dialogue" and (self.outfit or self.variant):
             raise ValueError("旁白不能指定人物造型或变体。")
+        if self.kind != "dialogue" and self.target:
+            raise ValueError("旁白不能指定对白接收者。")
+        if self.target and self.target == self.speaker:
+            raise ValueError("固定对白不能把说话者设为接收者。")
         return self
 
 
@@ -157,11 +162,16 @@ class Edge(BaseModel):
     trigger: Literal["manual", "ai"] = "manual"
     condition: str = Field(default="", max_length=1000)
     requires_holding: HoldingRequirement | None = None
+    requires_agreement: list[str] = Field(default_factory=list, max_length=20)
 
     @model_validator(mode="after")
     def condition_required(self, info: ValidationInfo):
         if self.trigger == "ai" and not self.condition and not (info.context or {}).get("authoring_draft"):
             raise ValueError("AI 转场需要填写触发条件。")
+        if len(self.requires_agreement) != len(set(self.requires_agreement)):
+            raise ValueError("同一出口不能重复要求同一角色同意。")
+        if self.requires_agreement and self.trigger != "ai":
+            raise ValueError("角色同行同意只能用于 AI 条件出口。")
         return self
 
 
@@ -174,6 +184,7 @@ class Narrative(BaseModel):
     @model_validator(mode="after")
     def graph(self, info: ValidationInfo):
         ids = {n.id for n in self.nodes}
+        nodes = {n.id: n for n in self.nodes}
         if len(ids) != len(self.nodes) or self.entry not in ids:
             raise ValueError("剧情节点标识必须唯一，且入口必须存在。")
         if len({e.id for e in self.edges}) != len(self.edges):
@@ -183,6 +194,10 @@ class Narrative(BaseModel):
         for edge in self.edges:
             if edge.source not in ids or edge.target not in ids:
                 raise ValueError("剧情连线引用了不存在的节点。")
+            if not set(edge.requires_agreement) <= {
+                placement.actor for placement in nodes[edge.target].entry_locations
+            } and not (info.context or {}).get("authoring_draft"):
+                raise ValueError("同行同意角色必须在目标场景设置入场地点。")
             if next(n for n in self.nodes if n.id == edge.source).ending and not (info.context or {}).get(
                 "authoring_draft"
             ):
@@ -274,6 +289,7 @@ def enter_node(s, story, graph, node_id, actors, path):
             record = commit_block(s, story, node, block, actors)
     story.settings = {
         **story.settings,
+        "auto_route": {},
         **({"paused": True} if node.get("mode") == "backstage" else {}),
         "narrative": {
             "node": node_id,
@@ -489,7 +505,10 @@ def install_routes(router, db, who):
                 select(Task.id)
                 .where(
                     Task.status.in_(["queued", "running", "waiting"]),
-                    Task.kind.in_(["respond", "scene_run", "npc_step"]),
+                    # An autonomous offscreen scene must not trap the player
+                    # in this node. Entering its location invalidates the
+                    # scene_run at its next checked publication boundary.
+                    Task.kind.in_(["respond", "npc_step"]),
                     (Task.session_id.in_(ids)) | (Task.payload["story_id"].as_string() == sid),
                 )
                 .limit(1)

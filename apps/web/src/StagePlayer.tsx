@@ -200,7 +200,7 @@ export function StagePlayer({
         {trayOnFrame && tray && <div className="vn-stage-tray">{tray}</div>}
       </div>
       {!trayOnFrame && tray}
-      <div className="vn-dialogue">
+      <div className="vn-dialogue" data-reading-event={line?.id.replace(/:\d+$/, '')}>
         <strong>{line?.speaker || '旁白'}</strong>
         <p>{line?.text || emptyText}</p>
         {children}

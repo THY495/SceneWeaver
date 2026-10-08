@@ -1,4 +1,4 @@
-"""Verify the exact roleplay source snapshot before a first public push."""
+"""Verify the exact roleplay source snapshot and optional staged index."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def main() -> int:
     manifest = json.loads((ROOT / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
     expected = manifest["files"]
     errors = []
-    if manifest["version"] != "0.1.0-alpha.1" or manifest["scope"] != "roleplay-source-only":
+    if manifest["version"] != "0.1.0-alpha.2" or manifest["scope"] != "roleplay-source-only":
         errors.append("release identity mismatch")
     actual = included() - {"RELEASE-MANIFEST.json"}
     if actual != set(expected):
@@ -73,7 +73,7 @@ def main() -> int:
         errors.append("Studio does not use the roleplay-only entry")
     if args.staged:
         result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR", "-z"],
+            ["git", "ls-files", "-z"],
             cwd=ROOT,
             capture_output=True,
             check=True,
@@ -82,9 +82,29 @@ def main() -> int:
         expected_staged = set(expected) | {"RELEASE-MANIFEST.json"}
         if staged != expected_staged:
             errors.append(
-                f"staged file set differs: added={sorted(staged - expected_staged)}, "
+                f"index file set differs: added={sorted(staged - expected_staged)}, "
                 f"missing={sorted(expected_staged - staged)}"
             )
+        indexed_manifest = subprocess.run(
+            ["git", "show", ":RELEASE-MANIFEST.json"],
+            cwd=ROOT,
+            capture_output=True,
+        )
+        if (
+            indexed_manifest.returncode
+            or indexed_manifest.stdout != (ROOT / "RELEASE-MANIFEST.json").read_bytes()
+        ):
+            errors.append("index manifest differs from working tree")
+        for relative, digest in expected.items():
+            if relative not in staged:
+                continue
+            indexed = subprocess.run(
+                ["git", "show", f":{relative}"],
+                cwd=ROOT,
+                capture_output=True,
+            )
+            if indexed.returncode or hashlib.sha256(indexed.stdout).hexdigest() != digest:
+                errors.append(f"index content changed: {relative}")
     print(json.dumps({"files": len(expected), "errors": errors}, ensure_ascii=False))
     return 1 if errors else 0
 

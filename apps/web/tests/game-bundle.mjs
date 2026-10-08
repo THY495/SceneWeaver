@@ -20,6 +20,8 @@ assert(
 )
 assert(sourceModules.includes('game.tsx'), 'Missing player entry')
 assert(!sourceModules.includes('main.tsx'), 'Studio entry reached the game bundle')
+for (const module of ['TimingTrace.tsx', 'StoryTiming.tsx', 'PerformanceLanes.tsx', 'RequestAudit.tsx'])
+  assert(!sourceModules.includes(module), `Creator diagnostics reached the game bundle: ${module}`)
 for (const phrase of forbiddenText) assert(!code.includes(phrase), `Author text in game: ${phrase}`)
 
 const report = {

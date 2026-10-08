@@ -6,7 +6,7 @@ const source = await readFile(new URL('../src/scenePreviewLocations.ts', import.
 const compiled = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
 }).outputText
-const { scenePreviewLocations } = await import(
+const { scenePreviewLocations, unstagedColocatedActors } = await import(
   'data:text/javascript;base64,' + Buffer.from(compiled).toString('base64')
 )
 const actors = [
@@ -41,4 +41,14 @@ assert.deepEqual(resolved.ambiguous, [])
 branched.nodes.push({ id: 'after' })
 branched.edges.push({ source: 'ending', target: 'after' })
 assert.deepEqual(scenePreviewLocations(branched, actors, 'after').ambiguous, [])
+const cast = [
+  { alias: 'npc', name: '许遥' },
+  { alias: 'player', name: '旅人' },
+]
+assert.deepEqual(unstagedColocatedActors(cast, 'player', resolved.locations, []), [
+  { alias: 'npc', name: '许遥' },
+])
+assert.deepEqual(unstagedColocatedActors(cast, 'player', resolved.locations, [{ actor: 'npc' }]), [])
+assert.deepEqual(unstagedColocatedActors(cast, 'player', resolved.locations, null), [])
+assert.deepEqual(unstagedColocatedActors(cast, 'player', uncertain.locations, []), [])
 console.log('Scene preview inherits entry moves across a DAG and flags differing branch locations')

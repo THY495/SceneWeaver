@@ -118,6 +118,57 @@ class ReusableSocket:
         return self.events.pop(0)
 
 
+async def test_qwen_partial_audio_close_records_receive_stage_and_drops_lease():
+    from websockets.exceptions import ConnectionClosedError
+    from websockets.frames import Close
+
+    class ClosedSocket(ReusableSocket):
+        async def recv(self):
+            if len(self.events) == 1:
+                raise ConnectionClosedError(Close(1011, "private-upstream-body"), None)
+            return await super().recv()
+
+    pool, socket = TTSConnections(), ClosedSocket()
+    adapter = QwenAudioTTS(
+        "private-key",
+        "qwen-audio-3.0-tts-flash",
+        "ws",
+        "cn-beijing",
+        connector=lambda *a, **k: socket,
+        connections=pool,
+    )
+    source = adapter.stream(SpeechRequest("测试台词", "voice"))
+    assert await anext(source) == b"\x01\x00"
+    with pytest.raises(ConnectionClosedError):
+        await anext(source)
+    assert adapter.timings["failure_phase"] == "receive_audio"
+    assert adapter.timings["failure_type"] == "ConnectionClosedError"
+    assert adapter.timings["received_close_code"] == 1011
+    assert "sent_close_code" not in adapter.timings
+    assert "provider_complete_ms" not in adapter.timings
+    assert "private" not in json.dumps(adapter.timings)
+    assert socket.closed and not pool.idle and not pool.active
+    await pool.close()
+
+
+async def test_qwen_warm_reuses_socket_without_submitting_or_billing_text():
+    pool, socket = TTSConnections(), ReusableSocket()
+    created = []
+
+    def connector(*args, **kwargs):
+        created.append(1)
+        return socket
+
+    adapter = QwenAudioTTS(
+        "key", "qwen-audio-3.0-tts-flash", "ws", "cn-beijing", connector=connector, connections=pool
+    )
+    assert await adapter.warm()
+    assert socket.sent == []
+    assert b"".join([p async for p in adapter.stream(SpeechRequest("你好", "voice"))]) == b"\x01\x00"
+    assert len(created) == 1 and adapter.timings["connection_reused"]
+    await pool.close()
+
+
 async def test_qwen_reuses_only_finished_tasks_with_new_ids_and_voice_parameters():
     pool, socket = TTSConnections(), ReusableSocket()
     created = []

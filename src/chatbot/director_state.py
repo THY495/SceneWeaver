@@ -1,5 +1,7 @@
 """Private, task-scoped director ledger. Never writes speech or role memories."""
 
+import hashlib
+import json
 from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
@@ -53,8 +55,7 @@ def locked_plan(db, task, story_id, world_seq, *, allow_ack_advance=False):
             or (
                 story.seq != world_seq
                 and not (
-                    allow_ack_advance
-                    and ack_only_world_advance(s, task, story_id, world_seq, story.seq)
+                    allow_ack_advance and ack_only_world_advance(s, task, story_id, world_seq, story.seq)
                 )
             )
             or not live
@@ -92,9 +93,17 @@ def install_plan(
     validate_scope=None,
     recovery_reason="",
     allow_ack_advance=False,
+    handoff_policy="on_question",
+    segment_capacity=None,
+    inherited_jobs=None,
+    on_install=None,
 ):
     """CAS replacement; rejected stale writers cannot overwrite a newer plan."""
     plan = DirectorPlan.model_validate(plan.model_dump())
+    if handoff_policy not in {"after_beat", "on_question", "continuous"}:
+        raise ValueError("导演交还节奏无效。")
+    if segment_capacity is not None and not max(1, len(plan.jobs)) <= segment_capacity <= 6:
+        raise ValueError("导演剩余片段容量无效。")
     with locked_plan(db, task, story_id, world_seq, allow_ack_advance=allow_ack_advance) as (s, key, row):
         world_seq = s.get(Story, story_id).seq
         if validate_scope is not None and not validate_scope(s):
@@ -118,6 +127,18 @@ def install_plan(
         steps = sorted(int(key[len(prefix) :]) for key in published if key[len(prefix) :].isdigit())
         if steps != list(range(len(steps))):
             raise StaleTask("已发布演出序号不连续，不能安装新计划。")
+        if inherited_jobs is None:
+            inherited_jobs = []
+            if previous.get("plan", {}).get("beat_id") == plan.beat_id:
+                inherited_jobs = list(previous.get("inherited_jobs", []))
+                for job in previous["plan"]["jobs"]:
+                    candidate = previous.get("candidates", {}).get(job["id"], {})
+                    if candidate.get("status") == "committed":
+                        inherited_jobs.append({"actor": job["actor"], "objective": job["objective"],
+                                               "event_id": candidate["event_id"]})
+                inherited_jobs = list({job["event_id"]: job for job in inherited_jobs}.values())
+        if on_install is not None:
+            on_install(s)
         payload = {
             "version": 1,
             "revision": expected_revision + 1,
@@ -128,7 +149,11 @@ def install_plan(
             "epoch": task.epoch,
             "step_offset": len(steps),
             "plan": plan.model_dump(),
+            "handoff_policy": handoff_policy,
+            "segment_capacity": segment_capacity,
             "candidates": {},
+            "inherited_jobs": inherited_jobs or [],
+            "inherited_event_ids": [job["event_id"] for job in (inherited_jobs or [])],
         }
         if row:
             archived = deepcopy(previous)
@@ -236,6 +261,25 @@ def check_publication(s, task, story, token: CandidateCommit, *, step, actor_id,
         return row, data
     if data["world_seq"] != story.seq or candidate.get("status") != "approved":
         raise StaleTask("候选或世界状态已失效。")
+    job = plan.jobs[index]
+    if job.grounded_response:
+        from .source_authorization import author_source_scope
+
+        authorization = data.get("authorizations", {}).get(job.id)
+        if authorization:
+            audit = s.get(Operation, authorization["operation_id"])
+            proof = audit.payload if audit else {}
+            scope = author_source_scope(s, task, actor_id, job, data)
+            if (not scope or authorization.get("mode") != "grounded_response"
+                    or authorization.get("actor_id") != actor_id
+                    or authorization.get("author_scope") != scope
+                    or proof.get("author_scope") != scope
+                    or proof.get("job_sha256") != authorization.get("job_sha256")
+                    or proof.get("job_sha256") != hashlib.sha256(
+                        json.dumps(job.model_dump(), sort_keys=True).encode()).hexdigest()
+                    or proof.get("job_id") != job.id or proof.get("actor_id") != actor_id
+                    or proof.get("director_revision") != token.plan_revision):
+                raise StaleTask("结构化回应的作者许可已变化。")
     if any(candidates.get(job.id, {}).get("status") != "committed" for job in plan.jobs[:index]):
         raise StaleTask("前序演出尚未正式发生。")
     for dep, revision in candidate["dependency_revisions"].items():

@@ -1,0 +1,164 @@
+{
+  "suite_id": "procedure-versus-proposal",
+  "version": 2,
+  "defaults": {
+    "cast": [
+      {
+        "id": "npc",
+        "name": "陈默"
+      },
+      {
+        "id": "p",
+        "name": "访客"
+      }
+    ],
+    "intent": {
+      "act": "speak",
+      "purpose": "回答登记需要什么；仅按已知信息说明，不知道时可承认未知，也可提出明确可拒绝的个人建议。",
+      "addressee_id": "p"
+    },
+    "sources": {},
+    "info": {
+      "profile": {
+        "name": "陈默",
+        "core": "谨慎而耐心的车站值班员，帮助描述遗失箱子，尊重访客是否登记的决定。"
+      },
+      "observations": []
+    }
+  },
+  "cases": [
+    {
+      "case_id": "full-failure-context",
+      "expected_accept": false,
+      "intent": {
+        "act": "speak",
+        "purpose": "简单确认深蓝色箱子、黄色丝带的特征，接着说明登记寻物需要提供的信息类型，让访客决定是否登记",
+        "addressee_id": "p",
+        "expects_reply": true
+      },
+      "sources": {
+        "s": "箱子是深蓝色的，提手上系着一条黄色丝带。我还没决定要不要登记，你先告诉我需要提供什么。"
+      },
+      "info": {
+        "profile": {
+          "name": "陈默",
+          "core": "车站值班员，做事谨慎而耐心。先听旅客描述遗失物，再询问是否登记寻物信息。未经核验不确认失物归属，也不声称已经找到或交还物品。"
+        },
+        "observations": [
+          {
+            "id": "s",
+            "kind": "speech",
+            "actor_id": "p",
+            "speaker": "访客",
+            "text": "箱子是深蓝色的，提手上系着一条黄色丝带。我还没决定要不要登记，你先告诉我需要提供什么。"
+          }
+        ]
+      },
+      "speech": {
+        "text": "深蓝色、提手上系着黄色丝带，这两点我先记下。登记寻物要写清你的姓名和联系方式，再描述箱子的颜色、大小和箱内能证明归属的物品；如果有行李牌编号或托运单据，也一并提供，方便日后核对。登不登记由你决定，我不会替你填。",
+        "claims": [
+          {
+            "source_id": "s",
+            "quote": "箱子是深蓝色的，提手上系着一条黄色丝带。",
+            "text": "深蓝色、提手上系着黄色丝带，这两点我先记下。",
+            "mode": "reported"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "invented-required-fields",
+      "pair_id": "rule-evidence",
+      "expected_accept": false,
+      "speech": {
+        "text": "登记寻物要写清你的姓名和联系方式，再描述箱子的颜色、大小和箱内能证明归属的物品。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "established-required-fields",
+      "pair_id": "rule-evidence",
+      "expected_accept": true,
+      "info": {
+        "profile": {
+          "name": "陈默",
+          "core": "车站值班员；已知本车站寻物登记规定要求姓名、联系方式、箱子颜色、大小和箱内可识别物品。"
+        },
+        "observations": []
+      },
+      "sources": {
+        "profile": "已知本车站寻物登记规定要求姓名、联系方式、箱子颜色、大小和箱内可识别物品。"
+      },
+      "speech": {
+        "text": "登记寻物要写清你的姓名和联系方式，再描述箱子的颜色、大小和箱内能证明归属的物品。",
+        "claims": [
+          {
+            "source_id": "profile",
+            "quote": "已知本车站寻物登记规定要求姓名、联系方式、箱子颜色、大小和箱内可识别物品。",
+            "text": "登记寻物要写清你的姓名和联系方式，再描述箱子的颜色、大小和箱内能证明归属的物品。",
+            "mode": "fact"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "acknowledge-unknown",
+      "expected_accept": true,
+      "speech": {
+        "text": "具体需要哪些资料，我还得核实，不能现在给你一个确定的清单。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "optional-current-suggestion",
+      "expected_accept": true,
+      "speech": {
+        "text": "如果你愿意，可以再描述一个辨认特征；这只是我的建议，不是登记的额外要求。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "statement-is-not-question",
+      "pair_id": "reply-obligation",
+      "expected_accept": true,
+      "expected_expects_reply": false,
+      "intent": {
+        "act": "speak",
+        "purpose": "向访客表达尊重其决定的承诺。",
+        "addressee_id": "p"
+      },
+      "speech": {
+        "text": "登不登记由你决定，我不会替你填。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "explicit-question-awaits-reply",
+      "pair_id": "reply-obligation",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "intent": {
+        "act": "speak",
+        "purpose": "询问访客是否愿意登记。",
+        "addressee_id": "p"
+      },
+      "speech": {
+        "text": "你愿意现在登记吗？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "optional-suggestion-no-presupposition",
+      "expected_accept": true,
+      "intent": {
+        "act": "speak",
+        "purpose": "提出可拒绝的个人建议，帮助描述箱子，不说明机构规定。",
+        "addressee_id": "p"
+      },
+      "speech": {
+        "text": "如果你愿意，可以描述一个你记得的箱子特征。这只是我的个人建议，你可以拒绝。",
+        "claims": []
+      }
+    }
+  ]
+}

@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -26,7 +27,7 @@ def main():
     folder.mkdir(parents=True)
     # Several project/asset tests create deep trees. Keep the pytest root short
     # enough for ordinary Windows installations without long-path support.
-    pytest_temp = ROOT / "t" / "p" / uuid4().hex[:6]
+    pytest_temp = Path(tempfile.gettempdir()) / "sceneweaver-tests" / uuid4().hex[:6]
     pytest_temp.parent.mkdir(parents=True, exist_ok=True)
     npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
     checks = [

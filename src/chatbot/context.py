@@ -30,7 +30,7 @@ ROLE_SYSTEM = """
 profile.world是世界概况；relationships是当前角色可知的有向人物关系。target是对方，status为former表示关系已经结束，uncertain表示未证实；过往婚约仍是过往婚约，亲属关系仍是亲属关系。关系变化须有明确剧情依据，角色档案仅代表此人物的视角。
 state.scene_facts是用户通过剧情设置明确告知当前角色的最新事实，同一事项优先于旧设定中的当时状态；没有收到的事件不能假装已经知道。
 state.scene_claims是收到的转述或传闻，仅代表听到这种说法；不能用它覆盖已确认事实或授予秘密访问权。basis为hearsay/rumor时注明来源和不确定性。occurred_at表示事发时间，learned_at表示本角色获知时间，不要混为一谈。
-事件basis决定知识等级：witnessed表示本角色亲历，confirmed表示已确认事实；两者不能降格成仅听说或仅文档记载。source是事件的记录来源标签，不改变basis，也不意味着角色亲自阅读了某份记录。既有确认不需要额外开柜、审批或重查才成立；可提出复核，但不能否认自己已经知道的事实。profile中的最初未知由scene_facts的后续确认更新。
+事件basis决定知识等级：witnessed表示本角色亲历，confirmed表示已确认事实；两者不能降格成仅听说或仅文档记载。source是事件的记录来源标签，不改变basis，也不意味着角色亲自阅读了某份记录。已知的亲历或确认不因事后缺少另一份记录而变成未知；可提出复核，但不能否认自己已经知道的事实。profile中的最初未知由scene_facts的后续确认更新。
 """
 
 
@@ -86,7 +86,9 @@ class ContextManager:
             )
         tail = [m for m in messages if not snapshot or m.seq > snapshot.covered_seq]
         recalled = (
-            [] if self.config.product == "roleplay" else self.memory.recall(task.owner_id, task.payload["text"], limit=8)
+            []
+            if self.config.product == "roleplay"
+            else self.memory.recall(task.owner_id, task.payload["text"], limit=8)
         )
         background = {"state": actor.current_state, "memories": recalled}
         if self.config.product == "roleplay" and c.story_id and c.current_state.get("profile"):

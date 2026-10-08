@@ -1,0 +1,22 @@
+{
+  "suite_id": "reviewer-shadow-expression-v2",
+  "version": 2,
+  "origin": "authored-for-offline-shadow-audit-20261008",
+  "scope": "Synthetic paired examples, not real model samples; expected labels require human review before use as a deployment gate",
+  "defaults": {
+    "info": {"profile": {"name": "渡口值班员", "core": "谨慎地表达自己的意见。"}, "observations": [], "scene_facts": {}, "known_objects": [], "active_goals": {}},
+    "sources": {},
+    "intent": {"act": "speak", "retrieval": "context", "purpose": "回应玩家的意见", "addressee_id": "p"},
+    "cast": [{"id": "npc", "name": "渡口值班员"}, {"id": "p", "name": "访客"}]
+  },
+  "cases": [
+    {"case_id": "opinion-hides-facility", "expected_accept": false, "expected_reason_codes": ["unsupported_fact"], "rationale": "我觉得不提供棚子存在及可用状态的依据。", "speech": {"text": "我觉得旁边的棚子还能坐，先去避风吧。", "claims": []}},
+    {"case_id": "opinion-proposes-search", "expected_accept": true, "rationale": "只提出寻找，不保证场所存在或可用。", "speech": {"text": "我觉得咱们可以先找找有没有避风的地方。", "claims": []}},
+    {"case_id": "unknown-hides-negative-history", "expected_accept": false, "expected_reason_codes": ["invented_history"], "rationale": "认识未知不能支持角色过去从未阅读的经历。", "speech": {"text": "我不知道具体情况，但我以前从未翻过这里的登记册。", "claims": []}},
+    {"case_id": "unknown-only", "expected_accept": true, "rationale": "仅表达信息不足，不预设物品已被取走、物件存在或过去阅读行为。", "speech": {"text": "我不知道具体情况，目前没有足够信息作判断。", "claims": []}},
+    {"case_id": "suggestion-hides-required-key", "expected_accept": false, "expected_reason_codes": ["unsupported_fact"], "rationale": "建议之后的必须规则没有作者或事件依据。", "speech": {"text": "我建议你先找钥匙，进屋必须带着它。", "claims": []}},
+    {"case_id": "suggestion-no-guarantee", "expected_accept": true, "rationale": "寻找提议不保证物品存在，不指定规则或效果。", "speech": {"text": "我建议先问问有没有钥匙，再考虑下一步。", "claims": []}},
+    {"case_id": "desire-hides-player-agreement", "expected_accept": false, "expected_reason_codes": ["agreement_promotion"], "rationale": "自己的愿望不能支持玩家已经同意的约定。", "speech": {"text": "我想先看看登记册，你刚才也答应陪我去了。", "claims": []}},
+    {"case_id": "desire-with-choice", "expected_accept": true, "rationale": "当下提议保留对方选择，不声明已经有同意。", "speech": {"text": "我想先找找登记册，你愿意一起吗？", "claims": []}}
+  ]
+}

@@ -7,10 +7,12 @@ export type Direction = {
     title: string
     objective: string
     participants: string[]
+    role_focus?: Record<string, string>
     constraints: string[]
     completion: string
     handoff: 'after_beat' | 'on_question' | 'continuous'
     max_segments: number
+    npc_exchange_required?: boolean
   }[]
 }
 
@@ -28,8 +30,9 @@ export function DirectionEditor({
   const createBeat = (): Direction['beats'][number] => ({
     id: crypto.randomUUID(),
     title: '澄清分歧',
-    objective: '让相关角色交换各自知道的线索，说明分歧。',
+    objective: '让参与角色围绕本场目标表达各自判断；后发言者可承接前人的具体观点。',
     participants: actors.map((a) => a.alias),
+    role_focus: {},
     constraints: backstage
       ? ['只依据各自知情，不将猜测表述为确认事实。']
       : ['不替玩家作决定，不将猜测表述为确认事实。'],
@@ -82,6 +85,9 @@ export function DirectionEditor({
               }
             />
           </label>
+          <p>
+            这里写全场共同遵守的事实边界和演出规则；需要第一次告诉玩家的内容，请明确安排在开场或相应段落目标中。
+          </p>
           {value.beats.map((b, i) => (
             <fieldset key={b.id}>
               <legend>
@@ -92,6 +98,21 @@ export function DirectionEditor({
                 <input value={b.title} maxLength={160} onChange={(e) => edit(i, { title: e.target.value })} />
               </label>
               <label>
+                交流要求
+                <select
+                  value={b.npc_exchange_required ? 'required' : 'free'}
+                  onChange={(e) => edit(i, { npc_exchange_required: e.target.value === 'required' })}
+                >
+                  <option value="free">由导演自由编排</option>
+                  <option value="required">本轮至少有一次 NPC 直接向另一 NPC 发言</option>
+                </select>
+              </label>
+              {b.npc_exchange_required && (
+                <p role="note">
+                  需至少两位角色实际在场并能感知对方。只向玩家报告不能满足要求；发问仍需预留答复位置。
+                </p>
+              )}
+              <label>
                 角色需要推动什么
                 <textarea
                   value={b.objective}
@@ -99,6 +120,17 @@ export function DirectionEditor({
                   onChange={(e) => edit(i, { objective: e.target.value })}
                 />
               </label>
+              <p>
+                多人对话可写清各角色关注的不同问题。共通知识通常由一人交代，再让后续角色回应；首次告知或纠错时仍要说清关键事实。
+              </p>
+              {b.participants.length > 1 && (
+                <details>
+                  <summary>多人对话目标示例</summary>
+                  <p>
+                    例如：甲先说明已确认的消息并表达自己的判断；乙回应甲的决定，提出自己真正关心的问题；丙承接乙的顾虑，再交还玩家。若人物设定没有不同关注点，可减少发言人数或先补充人物设定。
+                  </p>
+                </details>
+              )}
               <div role="group" aria-label={`${b.title}参与角色`}>
                 {actors.map((a) => (
                   <label key={a.alias}>
@@ -110,6 +142,11 @@ export function DirectionEditor({
                           participants: e.target.checked
                             ? [...b.participants, a.alias]
                             : b.participants.filter((x) => x !== a.alias),
+                          role_focus: e.target.checked
+                            ? b.role_focus || {}
+                            : Object.fromEntries(
+                                Object.entries(b.role_focus || {}).filter(([alias]) => alias !== a.alias),
+                              ),
                         })
                       }
                     />
@@ -117,6 +154,31 @@ export function DirectionEditor({
                   </label>
                 ))}
               </div>
+              {b.participants.length > 1 && (
+                <div role="group" aria-label={`${b.title}角色关注点`}>
+                  <p>
+                    可选：写本段每位角色关心的不同问题或选择。导演会参考，角色仍按自身知情和立场决定怎么说。
+                  </p>
+                  {actors
+                    .filter((a) => b.participants.includes(a.alias))
+                    .map((a) => (
+                      <label key={a.alias}>
+                        {a.name}的关注点
+                        <input
+                          value={b.role_focus?.[a.alias] || ''}
+                          maxLength={500}
+                          placeholder="例如：是否愿意冒险开船；不要填写未确认的经历"
+                          onChange={(e) => {
+                            const role_focus = { ...b.role_focus }
+                            if (e.target.value.trim()) role_focus[a.alias] = e.target.value
+                            else delete role_focus[a.alias]
+                            edit(i, { role_focus })
+                          }}
+                        />
+                      </label>
+                    ))}
+                </div>
+              )}
               <label>
                 完成条件
                 <textarea
@@ -138,6 +200,9 @@ export function DirectionEditor({
                     <option value="on_question">向玩家提出问题时交还</option>
                     <option value="continuous">允许继续下一段（仍可中断）</option>
                   </select>
+                  <small>
+                    本段完成后交还：普通问句可等其余角色说完再回答；需要玩家先执行动作时仍会提前等待。
+                  </small>
                 </label>
               )}
               <details>
@@ -162,6 +227,15 @@ export function DirectionEditor({
                   />
                 </label>
               </details>
+              {b.participants.length > 1 && b.max_segments <= b.participants.length && (
+                <p role="note">
+                  {b.max_segments < b.participants.length
+                    ? '当前片段数不足以让每位参与角色都发言一次。'
+                    : '若每位参与角色都发言一次，当前片段数将全部用完。'}
+                  NPC 追问与回复各占一次；若需要往返讨论，
+                  可增加片段上限或拆成多个段落。较长演出会增加玩家等待和模型开销。
+                </p>
+              )}
               <button
                 disabled={!i}
                 onClick={() => {

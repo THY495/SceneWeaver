@@ -1,0 +1,67 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-ferry-affordance-and-knowledge-v1",
+  "version": 1,
+  "scope": "Synthetic four-case calibration from multi-NPC expression probe; no real player content",
+  "defaults": {
+    "info": {
+      "profile": {"name": "沈舟", "core": "渡口老船工，谨慎但不喜欢照本宣科。", "world": "虚构渡口公告栏前"},
+      "observations": [],
+      "scene_facts": {
+        "announcement": {
+          "event_id": "announcement",
+          "value": "沈舟亲自读到公告：遇强风停航，复航时间由值班员收到通知后公布。具体复航时间未知。",
+          "basis": "confirmed"
+        }
+      },
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {"announcement": "沈舟亲自读到公告：遇强风停航，复航时间由值班员收到通知后公布。具体复航时间未知。"},
+    "player_request": "沈舟，你怎么看？",
+    "intent": {"act": "speak", "purpose": "回应停航话题，只谈自己知道的事。", "deception": false, "addressee_id": "alan"},
+    "cast": [{"id": "npc", "name": "沈舟"}, {"id": "alan", "name": "阿岚"}]
+  },
+  "cases": [
+    {
+      "case_id": "unprovided-shelter-usable",
+      "pair_id": "shelter-affordance",
+      "factor": "unsupported_current_facility",
+      "variant": "asserted",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "资料没有棚子或它可供避风的当前状态。",
+      "speech": {"text": "我不硬开。你若想避风，渡口棚子还能坐。", "claims": []}
+    },
+    {
+      "case_id": "propose-finding-shelter",
+      "pair_id": "shelter-affordance",
+      "factor": "unsupported_current_facility",
+      "variant": "proposal",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "只建议寻找避风处，不保证现场已有可用棚子。",
+      "speech": {"text": "我不硬开。你若想避风，咱们可以找找有没有合适的地方。", "claims": []}
+    },
+    {
+      "case_id": "universal-knowledge-unknown",
+      "pair_id": "knowledge-scope",
+      "factor": "knowledge_quantifier",
+      "variant": "everyone",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "具体复航时间未给出，不推出所有人都不知道。",
+      "speech": {"text": "公告写明复航时间等值班员收到通知后公布；现在谁也不知道什么时候复航。", "claims": []}
+    },
+    {
+      "case_id": "speaker-knowledge-unknown",
+      "pair_id": "knowledge-scope",
+      "factor": "knowledge_quantifier",
+      "variant": "self",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "只表达角色自己不知道，并正确说明已知公告。",
+      "speech": {"text": "公告写明复航时间等值班员收到通知后公布；具体什么时候能走，我不知道。", "claims": []}
+    }
+  ]
+}

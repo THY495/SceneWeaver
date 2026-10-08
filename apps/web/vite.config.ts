@@ -16,7 +16,7 @@ export default defineConfig(({ mode }) => {
                 for (const chunk of Object.values(bundle)) {
                   for (const module of Object.keys(chunk.modules || {})) {
                     if (
-                      /\/src\/(main|CreatorShell|StoryGraphWorkspace|DirectionEditor|NarrativeEditor)\.tsx$|@xyflow/.test(
+                      /\/src\/(main|CreatorShell|StoryGraphWorkspace|DirectionEditor|NarrativeEditor|TimingTrace|StoryTiming|PerformanceLanes|RequestAudit)\.tsx$|@xyflow/.test(
                         module.replaceAll('\\', '/'),
                       )
                     ) {

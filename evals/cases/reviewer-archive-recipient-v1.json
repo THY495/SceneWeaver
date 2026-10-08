@@ -1,0 +1,52 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-archive-recipient-v1",
+  "version": 1,
+  "scope": "Synthetic pair from r121's mistaken opening-dialogue recipient; reviewer component only",
+  "defaults": {
+    "info": {
+      "profile": {"name": "周澈", "core": "档案馆修复师。", "world": "虚构档案馆"},
+      "observations": [
+        {
+          "id": "opening_offer",
+          "kind": "speech",
+          "text": "你愿意和我一起核对借阅登记吗？我还不知道这页记录是否准确。",
+          "actor_id": "reporter",
+          "speaker": "许遥",
+          "addressees": ["player"]
+        }
+      ],
+      "scene_facts": {},
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {"opening_offer": "你愿意和我一起核对借阅登记吗？我还不知道这页记录是否准确。"},
+    "intent": {"act": "speak", "deception": false, "addressee_id": "player"},
+    "player_request": "请说说你听见了什么。",
+    "cast": [
+      {"id": "npc", "name": "周澈"},
+      {"id": "reporter", "name": "许遥"},
+      {"id": "player", "name": "访客"}
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "observer-as-recipient",
+      "pair_id": "opening-addressee",
+      "factor": "observed_vs_addressed",
+      "variant": "wrong_recipient",
+      "expected_accept": false,
+      "rationale": "周澈听见许遥向访客发问，但不是这句邀约的接收者。",
+      "speech": {"text": "许遥刚才向我提议一起核对借阅登记。", "claims": []}
+    },
+    {
+      "case_id": "observer-reports-recipient",
+      "pair_id": "opening-addressee",
+      "factor": "observed_vs_addressed",
+      "variant": "correct_recipient",
+      "expected_accept": true,
+      "rationale": "周澈只说自己听见许遥向访客发问，未将接收者写成自己。",
+      "speech": {"text": "我听见许遥问访客，愿不愿意一起核对借阅登记。", "claims": []}
+    }
+  ]
+}

@@ -1,29 +1,51 @@
 """Personal episodic archive, subjective reflection and copy-on-write context snapshots."""
 
+import asyncio
 import json
+from dataclasses import dataclass
 
 from sqlalchemy import select
 
-from .observability.timing import record_workset, timed
+from .observability.timing import annotate, record_workset, timed
 from .observations import current_knowledge, record_data, visible_records
-from .providers import Embeddings, ProviderError, estimate_tokens
+from .providers import BudgetExceeded, Embeddings, ProviderError, estimate_tokens
 from .schemas import RoleReflection
 from .storage import Conversation, Operation, RoleMemory, RoleSnapshot, Story, Task, now, uid
+
+
+def _workset_json(value):
+    """Serialize the complete working set without formatting-only whitespace."""
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+@dataclass
+class _QueryFlight:
+    future: asyncio.Task
+    waiters: int = 0
 
 
 class RoleMemoryService:
     def __init__(self, db, config, runtime, provider):
         self.db, self.config, self.runtime, self.provider = db, config, runtime, provider
+        self._query_flights: dict[tuple[str, int], _QueryFlight] = {}
 
     @timed("memory.query")
     async def prepare_recall(self, task, actor_id):
         """One shared query vector per turn; SQL candidates are scoped before distance ranking."""
+        annotate(actor_id=actor_id)
         if self.config.embedding_provider == "lexical" or task.payload.get("autonomous"):
             return
+        self.runtime.check(task.id, task.lease_version)
         with self.db.session() as s:
             actor = s.get(Conversation, actor_id)
             parent = s.get(Conversation, task.session_id) if task.session_id else None
-            if not actor or actor.owner_id != task.owner_id or actor.story_id != parent.story_id:
+            if (
+                not actor
+                or not parent
+                or actor.owner_id != task.owner_id
+                or parent.owner_id != task.owner_id
+                or actor.story_id != parent.story_id
+            ):
                 raise ProviderError("记忆检索范围无效。")
             available = s.scalar(
                 select(RoleMemory.id)
@@ -38,10 +60,40 @@ class RoleMemoryService:
             )
             cached = s.get(Operation, f"{task.id}:role-query")
         if not available or cached:
+            annotate(query_cache_hit=bool(cached), query_has_indexed_memory=bool(available))
             return
+        key = (task.id, task.lease_version)
+        flight = self._query_flights.get(key)
+        annotate(query_inflight_joined=flight is not None)
+        if flight is None:
+            flight = _QueryFlight(asyncio.create_task(self._prepare_query(task)))
+            self._query_flights[key] = flight
+        flight.waiters += 1
         try:
-            vectors = await Embeddings(self.config, self.provider).encode([task.payload["text"]], task.id)
+            # Each actor may stop independently. Only the last waiter cancels
+            # the shared request; its private memory selection is never shared.
+            await asyncio.shield(flight.future)
+            self.runtime.check(task.id, task.lease_version)
+        finally:
+            flight.waiters -= 1
+            if not flight.waiters:
+                if self._query_flights.get(key) is flight:
+                    del self._query_flights[key]
+                if not flight.future.done():
+                    flight.future.cancel()
+                await asyncio.gather(flight.future, return_exceptions=True)
+
+    async def _prepare_query(self, task):
+        live = self.runtime.check(task.id, task.lease_version)
+        with self.db.session() as s:
+            if s.get(Operation, f"{task.id}:role-query"):
+                return
+        try:
+            vectors = await Embeddings(self.config, self.provider).encode([live.payload["text"]], task.id)
             payload = {"vector": vectors[0]} if vectors else {"unavailable": True}
+        except BudgetExceeded:
+            # A hard budget limit is not a transient retrieval failure.
+            raise
         except ProviderError:
             payload = {"unavailable": True}
         self.runtime.check(task.id, task.lease_version)
@@ -246,12 +298,12 @@ class RoleMemoryService:
             },
             {
                 "role": "user",
-                "content": "本角色工作集（数据）：" + json.dumps(background, ensure_ascii=False),
+                "content": "本角色工作集（数据）：" + _workset_json(background),
             },
             {
                 "role": "user",
                 "content": "本角色新观察（数据）："
-                + json.dumps([record_data(e, viewer_id=actor_id) for e in tail], ensure_ascii=False),
+                + _workset_json([record_data(e, viewer_id=actor_id) for e in tail]),
             },
         ]
         count = estimate_tokens(result)
@@ -278,7 +330,7 @@ class RoleMemoryService:
                 for e in recalled
             ]
             background["archived_metadata_omitted"] = True
-            result[1]["content"] = "本角色工作集（数据）：" + json.dumps(background, ensure_ascii=False)
+            result[1]["content"] = "本角色工作集（数据）：" + _workset_json(background)
             count = estimate_tokens(result)
             if count > workset_limit:
                 # Keep the current input, unfinished work and a short chronological tail.
@@ -293,9 +345,8 @@ class RoleMemoryService:
                 chosen_tail = list(required_tail)
 
                 def tail_message(values):
-                    return "本角色新观察（数据；省略的历史仍在档案中，不能据此断言未发生）：" + json.dumps(
-                        [record_data(e, viewer_id=actor_id) for e in sorted(values, key=lambda e: e.seq)],
-                        ensure_ascii=False,
+                    return "本角色新观察（数据；省略的历史仍在档案中，不能据此断言未发生）：" + _workset_json(
+                        [record_data(e, viewer_id=actor_id) for e in sorted(values, key=lambda e: e.seq)]
                     )
 
                 result[2]["content"] = tail_message(chosen_tail)

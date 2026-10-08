@@ -15,8 +15,10 @@ import { defaultTransform } from './stageTransform'
 import {
   graphDiagnostics,
   itemReferences,
+  openingRecipientWarnings,
   releaseReadiness,
   removeActorFromGraph,
+  transitionWarnings,
 } from './authoringValidation'
 import { ServiceReadiness } from './ServiceReadiness'
 import { VoicePreview } from './VoicePreview'
@@ -142,6 +144,7 @@ export function StoryStudio({
     [error, setError] = useState(''),
     [notice, setNotice] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [llmConfigured, setLlmConfigured] = useState(false)
   const [buildRefresh, setBuildRefresh] = useState(0)
   const buildPending = useRef<{ project: string; version: number; request: string } | null>(null)
   const [past, setPast] = useState<Recipe[]>([])
@@ -181,7 +184,7 @@ export function StoryStudio({
         }
       }
     } catch (e) {
-      setError(String(e))
+      setError(e instanceof Error ? e.message : String(e))
     }
   }
   useEffect(() => {
@@ -440,7 +443,7 @@ export function StoryStudio({
       }
     } catch (e) {
       if (e instanceof RequestFailure && !e.uncertain) pending.current = null
-      setError(String(e))
+      setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -588,6 +591,10 @@ export function StoryStudio({
       ].filter(Boolean)
     : []
   const graphIssues = graphDiagnostics(recipe?.narrative)
+  const transitionNotes = [
+    ...transitionWarnings(recipe?.narrative, recipe?.player.alias),
+    ...openingRecipientWarnings(recipe?.narrative),
+  ]
   const releaseIssues = releaseReadiness(recipe?.narrative, recipe?.people, recipe?.player)
   const issues = [...basicIssues, ...graphIssues.map((issue) => issue.message)]
   const buildIssues = [...issues, ...releaseIssues]
@@ -1410,7 +1417,7 @@ export function StoryStudio({
                 )}
                 {step === 7 && (
                   <>
-                    <ServiceReadiness request={request} />
+                    <ServiceReadiness request={request} onConfigured={setLlmConfigured} />
                     <VoicePreview request={request} />
                     <VoiceReferences project={draft.id} request={request} />
                     {draft.version > 0 && (
@@ -1453,6 +1460,27 @@ export function StoryStudio({
                           }}
                         >
                           {issue.code.startsWith('detached:') ? '打开故事图连线' : '定位到问题设定'}
+                        </button>
+                      </div>
+                    ))}
+                    {transitionNotes.map((issue) => (
+                      <div role="status" key={issue.code}>
+                        <p>
+                          {issue.panel === 'opening' ? '开场核对' : '转场核对'}：{issue.message}
+                        </p>
+                        <button
+                          onClick={() => {
+                            setSelectedScene(issue.scene)
+                            sceneCursor.current = issue.scene
+                            setDiagnosticFocus({
+                              scene: issue.scene,
+                              panel: issue.panel,
+                              revision: Date.now(),
+                            })
+                            setStep(5)
+                          }}
+                        >
+                          {issue.panel === 'opening' ? '查看开场设置' : '查看出口设置'}
                         </button>
                       </div>
                     ))}
@@ -1547,11 +1575,14 @@ export function StoryStudio({
               ) : (
                 <button
                   className="primary"
-                  disabled={busy || issues.length > 0}
+                  disabled={busy || issues.length > 0 || !llmConfigured}
                   onClick={() => void action(true)}
                 >
                   {busy ? '处理中…' : pending.current ? '重试本次启动' : '保存并从起点预览'}
                 </button>
+              )}
+              {step === 7 && !llmConfigured && (
+                <p>预览需要 LLM Key。源码 Studio 请在本机 .env 设置 CHAT_API_KEY、重启服务后刷新页面。</p>
               )}
             </footer>
           </>

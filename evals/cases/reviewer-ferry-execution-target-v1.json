@@ -1,0 +1,50 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-ferry-execution-target-v1",
+  "version": 1,
+  "scope": "Synthetic ferry cases frozen from execution architecture probes; no real player content",
+  "defaults": {
+    "actor_id": "shen",
+    "info": {
+      "profile": {"name": "沈舟", "core": "码头值班员，耐心区分已知和未知。", "world": "虚构雾港渡口"},
+      "observations": [],
+      "scene_facts": {"thunder": {"event_id": "thunder", "value": "一阵雷声从远处传来。", "basis": "confirmed"}},
+      "known_objects": [], "active_goals": {}
+    },
+    "sources": {"thunder": "一阵雷声从远处传来。"},
+    "intent": {"act": "speak", "deception": false, "purpose": "回应阿岚", "addressee_id": "alan"},
+    "cast": [{"id": "shen", "name": "沈舟"}, {"id": "alan", "name": "阿岚"}, {"id": "lin", "name": "林澈"}, {"id": "player", "name": "旅人"}]
+  },
+  "cases": [
+    {
+      "case_id": "distant-thunder-does-not-prove-approach", "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "单次远处雷声不能证明距离正在缩短；来自实际v3漏审。",
+      "speech": {"text": "阿岚，雷声近了。", "claims": [{"text": "雷声近了。", "source_id": "thunder", "quote": "一阵雷声从远处传来。", "mode": "fact"}]}
+    },
+    {
+      "case_id": "distant-thunder-stays-in-observed-extent", "expected_accept": true,
+      "speech": {"text": "阿岚，刚才远处传来一阵雷。今晚能不能走，我现在说不准。", "claims": [{"text": "刚才远处传来一阵雷。", "source_id": "thunder", "quote": "一阵雷声从远处传来。", "mode": "fact"}]}
+    },
+    {
+      "case_id": "narrowed-purpose-does-not-complete-authorized-reply", "expected_accept": false,
+      "expected_unsupported_check_count": 0,
+      "rationale": "演员把purpose缩成请下一人说，不能替代获准的实质回应。",
+      "intent": {"act": "speak", "deception": false, "purpose": "请林澈接续", "addressee_id": "alan"},
+      "director_assignment": {"objective": "向阿岚表达自己对公告当前已知、未知或态度。", "addressees": ["alan"], "delivery_constraints": ["简短一至两句。"]},
+      "speech": {"text": "阿岚，等下让林澈也接一句吧。", "claims": []}
+    },
+    {
+      "case_id": "uncertainty-is-substantive-without-invented-reading", "expected_accept": true,
+      "director_assignment": {"objective": "向阿岚表达自己对公告当前已知、未知或态度。", "addressees": ["alan"], "delivery_constraints": ["简短一至两句。"]},
+      "speech": {"text": "阿岚，公告到底写了什么，我现在说不准。我愿意先听听你的看法。", "claims": []}
+    },
+    {
+      "case_id": "optional-speaking-suggestion-needs-no-arrangement-authority", "expected_accept": true,
+      "expected_unsupported_check_count": 0,
+      "rationale": "没有实质回答任务时，可拒绝的发言建议不需职务或既有约定，不能附加许可门槛。",
+      "intent": {"act": "speak", "deception": false, "purpose": "建议听听林澈的看法", "addressee_id": "alan"},
+      "speech": {"text": "阿岚，等下让林澈也接一句吧。", "claims": []}
+    }
+  ]
+}

@@ -12,6 +12,7 @@ from ..director_state import locked_plan
 from ..runtime import StaleTask
 from ..storage import Operation, SceneRecord, Story
 from .director import snapshot
+from .exchange_requirement import beat_committed_event_ids, npc_exchange_observed
 
 
 class BeatAssessment(BaseModel):
@@ -33,8 +34,10 @@ async def assess_beat(services, task, turn, beat_id):
         events = set(s.scalars(select(SceneRecord.id).where(SceneRecord.task_id == task.id)))
         if task.payload.get("event_id"):
             events.add(task.payload["event_id"])
+        exchange_events = beat_committed_event_ids(s, task.id, beat_id)
     beat = next(b for b in frozen.direction.beats if b.id == beat_id)
     observations = json.loads(frozen.public_context)["events"]
+    exchange_met = not beat.npc_exchange_required or npc_exchange_observed(beat, observations, exchange_events)
     messages = [
         {
             "role": "system",
@@ -62,12 +65,18 @@ async def assess_beat(services, task, turn, beat_id):
     )
     sources = {e["event_id"]: e["text"] for e in observations}
     advanced = (
-        assessment.status == "met"
+        exchange_met
+        and assessment.status == "met"
         and bool(assessment.evidence)
         and all(e.event_id in sources and e.quote in sources[e.event_id] for e in assessment.evidence)
         and any(e.event_id in events for e in assessment.evidence)
     )
-    result = {"advanced": advanced, "assessment": assessment.model_dump(), "beat_id": beat_id}
+    result = {
+        "advanced": advanced,
+        "assessment": assessment.model_dump(),
+        "beat_id": beat_id,
+        "npc_exchange_met": exchange_met if beat.npc_exchange_required else None,
+    }
     with locked_plan(services.db, task, turn.story_id, frozen.world_seq) as (s, _, _):
         existing = s.get(Operation, key)
         if existing:

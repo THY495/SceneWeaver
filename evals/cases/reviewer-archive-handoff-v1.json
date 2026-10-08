@@ -1,0 +1,123 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-archive-handoff-v1",
+  "version": 1,
+  "scope": "Approved synthetic archive cast; final delivery metadata only; labels frozen before paid calls",
+  "defaults": {
+    "intent": {
+      "act": "speak",
+      "deception": false,
+      "addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201"
+    },
+    "player_request": "请大家先谈谈自己的看法，我听完再决定。",
+    "cast": [
+      {
+        "id": "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc",
+        "name": "周澈"
+      },
+      {
+        "id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+        "name": "许遥"
+      },
+      {
+        "id": "5ebc7e38-c8e9-4643-948b-d80d280365bf",
+        "name": "林岚"
+      },
+      {
+        "id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+        "name": "访客"
+      }
+    ],
+    "actor_id": "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc",
+    "info": {
+      "profile": {
+        "name": "周澈",
+        "core": "档案馆修复师。",
+        "world": "虚构档案馆"
+      },
+      "observations": [],
+      "scene_facts": {},
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {}
+  },
+  "cases": [
+    {
+      "case_id": "ordinary-stale-true",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+      "expected_requires_player_action": false,
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+        "purpose": "交流各自看法",
+        "awaiting_player_action": true
+      },
+      "speech": {
+        "text": "你想先听哪部分？",
+        "claims": []
+      },
+      "rationale": "仅根据最终台词区分普通问句与说话者明确等待的先决行动；旧计划标志故意交叉。"
+    },
+    {
+      "case_id": "ordinary-stale-false",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+      "expected_requires_player_action": false,
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+        "purpose": "交流各自看法",
+        "awaiting_player_action": false
+      },
+      "speech": {
+        "text": "你怎么看？我也想听听林岚的想法。",
+        "claims": []
+      },
+      "rationale": "仅根据最终台词区分普通问句与说话者明确等待的先决行动；旧计划标志故意交叉。"
+    },
+    {
+      "case_id": "prerequisite-stale-false",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+      "expected_requires_player_action": true,
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+        "purpose": "交流各自看法",
+        "awaiting_player_action": false
+      },
+      "speech": {
+        "text": "请先作决定，我再继续说。",
+        "claims": []
+      },
+      "rationale": "仅根据最终台词区分普通问句与说话者明确等待的先决行动；旧计划标志故意交叉。"
+    },
+    {
+      "case_id": "prerequisite-stale-true",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+      "expected_requires_player_action": true,
+      "intent": {
+        "act": "speak",
+        "deception": false,
+        "addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+        "purpose": "交流各自看法",
+        "awaiting_player_action": true
+      },
+      "speech": {
+        "text": "你愿不愿意听？等你回答，我再说。",
+        "claims": []
+      },
+      "rationale": "仅根据最终台词区分普通问句与说话者明确等待的先决行动；旧计划标志故意交叉。"
+    }
+  ]
+}

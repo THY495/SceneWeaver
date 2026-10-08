@@ -21,7 +21,13 @@ def node():
         "observers": ["player", "curator"],
         "opening": [
             {"id": "rain", "kind": "narration", "text": "雨敲打着窗户。"},
-            {"id": "claim", "kind": "dialogue", "speaker": "curator", "text": "我已经把信交给船长了。"},
+            {
+                "id": "claim",
+                "kind": "dialogue",
+                "speaker": "curator",
+                "target": "player",
+                "text": "我已经把信交给船长了。",
+            },
         ],
     }
 
@@ -35,6 +41,14 @@ def test_opening_validation():
     bad = node()
     bad["opening"][1]["id"] = "rain"
     with pytest.raises(ValidationError, match="不能重复"):
+        Node.model_validate(bad)
+    bad = node()
+    bad["opening"][0]["target"] = "player"
+    with pytest.raises(ValidationError, match="旁白不能指定对白接收者"):
+        Node.model_validate(bad)
+    bad = node()
+    bad["opening"][1]["target"] = "curator"
+    with pytest.raises(ValidationError, match="不能把说话者设为接收者"):
         Node.model_validate(bad)
 
 
@@ -94,6 +108,12 @@ def test_fixed_speech_is_ordered_scoped_and_not_fact(db, config, fake, runtime):
         with db.session.begin() as s:
             s.get(Task, pending_id).status = "completed"
             runtime.enqueue(s, "compact", owner, {}, session_id=run["player_id"])
+            runtime.enqueue(
+                s,
+                "scene_run",
+                owner,
+                {"story_id": run["story_id"], "scene": "隔壁", "audience": []},
+            )
         requests = [advance, {**advance, "request_id": "parallel-second"}]
         with ThreadPoolExecutor(max_workers=2) as pool:
             responses = list(pool.map(lambda payload: client.post(path + "/advance", json=payload), requests))
@@ -125,6 +145,7 @@ def test_fixed_speech_is_ordered_scoped_and_not_fact(db, config, fake, runtime):
                 "utterance",
             ]
             assert rows[1].actor_id == run["actors"]["curator"]
+            assert rows[1].addressees == [run["player_id"]]
             assert "basis" not in rows[1].payload
             visible = {r.id for r in visible_records(s, run["player_id"])}
             assert {r.id for r in rows} <= visible
@@ -132,6 +153,13 @@ def test_fixed_speech_is_ordered_scoped_and_not_fact(db, config, fake, runtime):
             for actor in others:
                 assert not {r.id for r in rows} & {r.id for r in visible_records(s, actor)}
         recipe["narrative"]["nodes"][0]["opening"][1]["speaker"] = "missing"
+        assert (
+            client.put(
+                base + "/blueprints/" + str(uuid4()), json={"expected_version": 0, "recipe": recipe}
+            ).status_code
+            == 422
+        )
+        recipe["narrative"]["nodes"][0]["opening"][1].update(speaker="curator", target="missing")
         assert (
             client.put(
                 base + "/blueprints/" + str(uuid4()), json={"expected_version": 0, "recipe": recipe}

@@ -130,7 +130,180 @@ async def test_directed_actor_repairs_control_handoff_before_review(db, config, 
     assert len([role for role, _, _ in fake.calls if role == "actor_review"]) == 1
 
 
-async def test_actor_repairs_unexecuted_prop_stage_direction_before_review(db, config, runtime, fake):
+async def test_directed_actor_repairs_reply_addressed_to_player_instead_of_assigned_npc(
+    db, config, runtime, fake
+):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        sid, actors, player = launch(client)
+    runtime.submit(player, config.workspace_owner, "你们彼此谈谈。", "directed-addressee")
+    task = runtime.claim("test")
+    drafts = 0
+
+    def dialogue(messages):
+        nonlocal drafts
+        drafts += 1
+        if drafts == 2:
+            assert "导演指定的那位角色" in messages[-1]["content"]
+        answer = "旅人，我知道了。" if drafts == 1 else "阿岚，我同意先等。"
+        return {"text": answer, "spoken_parts": [answer], "claims": []}
+
+    def review(messages):
+        candidate = json.loads(messages[-1]["content"])["candidate"]
+        return {
+            "accepted": True,
+            "issues": [],
+            "checks": [],
+            "delivery": {
+                "addressee_id": player if candidate.startswith("旅人") else actors[1],
+                "expects_reply": False,
+                "response_kind": "answer",
+            },
+        }
+
+    fake.replies.update(dialogue=dialogue, actor_review=review)
+    agents = Agents(db, config, runtime, fake)
+    with db.session() as s:
+        actor = s.get(Conversation, actors[0])
+    trace = TimingTrace(task)
+    with trace.activate():
+        result = await perform_actor(
+            NPCServices(db, config, runtime, fake, agents.context, agents.knowledge),
+            task,
+            TurnContext(sid, player, tuple(actors)),
+            actor,
+            {"act": "speak", "purpose": "回应阿岚", "addressee_id": actors[1]},
+            0,
+            director_assignment={"objective": "回应阿岚", "addressees": [actors[1]]},
+        )
+    assert drafts == 2
+    assert result["answer"] == "阿岚，我同意先等。"
+    results = [span for span in trace.spans if span["name"] == "npc.semantic_review_result"]
+    assert results[0]["attributes"]["review_provider_accepted"] is True
+    assert results[0]["attributes"]["review_accepted"] is False
+    assert "director_addressee_mismatch" in results[0]["marks"]
+    assert "director_addressee_mismatch" not in results[1]["marks"]
+
+
+async def test_actor_repairs_second_open_question_to_same_npc(db, config, runtime, fake):
+    from chatbot.event_projection import requests_for
+    from chatbot.observations import append_record
+
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        sid, actors, player = launch(client)
+    runtime.submit(player, config.workspace_owner, "请你们谈谈。", "one-open-question")
+    task = runtime.claim("test")
+    with db.session.begin() as s:
+        question = append_record(
+            s,
+            story_id=sid,
+            actor=s.get(Conversation, actors[0]),
+            kind="speech",
+            text="阿岚，你怎么看？",
+            observer_ids=[*actors, player],
+            task_id=task.id,
+            dedupe="one-open-question:prior",
+            payload={"exchange": {"expects_reply": True, "target_id": actors[2]}},
+        )
+        question_id = question.id
+    drafts = 0
+
+    def dialogue(messages):
+        nonlocal drafts
+        drafts += 1
+        if drafts == 2:
+            assert "已有待答问题" in messages[-1]["content"]
+        answer = "阿岚，你能再说说吗？" if drafts == 1 else "我先说我的看法。"
+        return {"text": answer, "spoken_parts": [answer], "claims": []}
+
+    def review(messages):
+        candidate = json.loads(messages[-1]["content"])["candidate"]
+        return {
+            "accepted": True,
+            "issues": [],
+            "checks": [],
+            "delivery": {
+                "addressee_id": actors[2],
+                "expects_reply": "能再说说" in candidate,
+                "response_kind": "answer",
+            },
+        }
+
+    fake.replies.update(dialogue=dialogue, actor_review=review)
+    agents = Agents(db, config, runtime, fake)
+    with db.session() as s:
+        actor = s.get(Conversation, actors[1])
+    result = await perform_actor(
+        NPCServices(db, config, runtime, fake, agents.context, agents.knowledge),
+        task,
+        TurnContext(sid, player, tuple(actors)),
+        actor,
+        {"act": "speak", "purpose": "谈谈看法", "addressee_id": actors[2]},
+        1,
+    )
+    assert drafts == 2
+    assert result["answer"] == "我先说我的看法。"
+    with db.session() as s:
+        assert any(
+            request["question_id"] == question_id and request["status"] == "open"
+            for request in requests_for(s, actors[2])
+        )
+
+
+async def test_last_semantic_repair_preserves_assigned_npc_instead_of_forcing_player(
+    db, config, runtime, fake
+):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        sid, actors, player = launch(client)
+    runtime.submit(player, config.workspace_owner, "请你们彼此谈谈。", "last-repair-recipient")
+    task = runtime.claim("test")
+    drafts = 0
+
+    def dialogue(messages):
+        nonlocal drafts
+        drafts += 1
+        if drafts == 3:
+            assert "保留本片段的指定接收者和目的" in messages[-1]["content"]
+            assert "只对玩家已作出的选择" not in messages[-1]["content"]
+        text = "阿岚，这一点我还不能确认。"
+        return {"text": text, "spoken_parts": [text], "claims": []}
+
+    reviews = 0
+
+    def review(_messages):
+        nonlocal reviews
+        reviews += 1
+        return {
+            "accepted": reviews == 3,
+            "issues": [] if reviews == 3 else ["修正无据细节"],
+            "checks": [],
+            "delivery": {"addressee_id": actors[1], "expects_reply": False, "response_kind": "answer"},
+        }
+
+    fake.replies.update(dialogue=dialogue, actor_review=review)
+    agents = Agents(db, config, runtime, fake)
+    with db.session() as s:
+        actor = s.get(Conversation, actors[0])
+    result = await perform_actor(
+        NPCServices(db, config, runtime, fake, agents.context, agents.knowledge),
+        task,
+        TurnContext(sid, player, tuple(actors)),
+        actor,
+        {"act": "speak", "purpose": "回应阿岚", "addressee_id": actors[1]},
+        0,
+        director_assignment={"objective": "回应阿岚", "addressees": [actors[1]]},
+    )
+    assert result["answer"] == "阿岚，这一点我还不能确认。"
+    assert drafts == reviews == 3
+
+
+@pytest.mark.parametrize(
+    "unsafe",
+    ["（馆长把烟按灭）", "（放下手里的书）", "（手里的价签捏皱了一角）"],
+)
+async def test_actor_repairs_unexecuted_prop_stage_direction_before_review(db, config, runtime, fake, unsafe):
     config.product = "roleplay"
     with TestClient(create_app(config, db, fake)) as client:
         sid, actors, player = launch(client)
@@ -143,7 +316,7 @@ async def test_actor_repairs_unexecuted_prop_stage_direction_before_review(db, c
         drafts += 1
         if drafts == 2:
             assert "unexecuted_stage_object_action" in messages[-1]["content"]
-        text = "（馆长把烟按灭）我会等消息。" if drafts == 1 else "（馆长点头）我会等消息。"
+        text = unsafe + "我会等消息。" if drafts == 1 else "（馆长点头）我会等消息。"
         return {"text": text, "spoken_parts": ["我会等消息。"], "claims": []}
 
     fake.replies["dialogue"] = dialogue

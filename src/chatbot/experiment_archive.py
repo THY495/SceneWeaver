@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from .observability.usage import cache_reporting
 from .observations import perceive, record_data
 from .storage import (
     Conversation,
@@ -213,6 +214,7 @@ def archive(s, sid, who):
             .limit(1)
         )
     )
+    cache_reports = cache_reporting(s, usage)
     calls = [
         {
             "id": u.id,
@@ -223,6 +225,7 @@ def archive(s, sid, who):
             "input_tokens": u.input_tokens,
             "output_tokens": u.output_tokens,
             "cache_tokens": u.cache_tokens,
+            "cache_tokens_reported": cache_reports[u.id],
             "cost_usd": u.cost,
             "reserved_usd": u.reserved,
             "duration_ms": u.duration_ms,

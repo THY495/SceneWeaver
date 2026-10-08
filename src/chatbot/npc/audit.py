@@ -6,8 +6,21 @@ from ..observability.timing import audit_message
 from ..role_policy import review_grounding
 
 
-def review_message(info, evidence, speech, sources, *, actor_id, documents):
+def review_message(info, evidence, speech, sources, *, actor_id, documents, cast=None):
     grounding = review_grounding(info, evidence, speech, sources)
+    if cast is not None:
+        # Resolve only identities already supplied to this review. No world lookup,
+        # and an unresolved ID stays unresolved instead of guessing its name.
+        names = {actor["id"]: actor["name"] for actor in cast if actor.get("id") and actor.get("name")}
+        grounding["reviewed_actor"] = {"id": actor_id, "name": names.get(actor_id)}
+        for group in ("referenced_records_with_provenance", "recent_observed_utterances"):
+            for record in grounding[group]:
+                recipients = record.get("addressees")
+                if recipients:
+                    record["resolved_addressees"] = [
+                        {"id": recipient, "name": names.get(recipient)} for recipient in recipients
+                    ]
+                    record["addressed_to_reviewed_actor"] = actor_id in recipients
     primary = grounding["primary_grounding"]
     return audit_message(
         {"role": "user", "content": json.dumps(grounding, ensure_ascii=False)},

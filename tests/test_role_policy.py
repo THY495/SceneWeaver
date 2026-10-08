@@ -1,3 +1,6 @@
+import json
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from support.story import intention, launch
@@ -19,7 +22,7 @@ from chatbot.role_policy import (
     semantic_review_marks,
     unexecuted_stage_object_action,
 )
-from chatbot.storage import Conversation, RoleMemory, Task
+from chatbot.storage import Conversation, RoleMemory, SceneRecord, Task
 
 
 def test_reviewer_distinguishes_current_self_commitment_from_prior_mutual_agreement():
@@ -31,8 +34,13 @@ def test_object_mutation_cannot_hide_in_free_stage_performance():
     assert unexecuted_stage_object_action("（阿岚把烟按灭）我会先等消息。")
     assert unexecuted_stage_object_action("（她将便条递给沈舟）你先看看。")
     assert unexecuted_stage_object_action("(他把箱子打开)里面有什么？")
+    assert unexecuted_stage_object_action("（放下手里的书，愣了一下）你还认得我？")
+    assert unexecuted_stage_object_action("（按灭手里的烟）我会等消息。")
+    assert unexecuted_stage_object_action("（手里的价签捏皱了一角）我听见了。")
+    assert unexecuted_stage_object_action("（把价签揉皱）我听见了。")
     assert not unexecuted_stage_object_action("（阿岚点头，沉默片刻）我会先等消息。")
     assert not unexecuted_stage_object_action("（她把手放下，放低声音）我同意。")
+    assert not unexecuted_stage_object_action("（放下手里的活儿，抬头看他）请说。")
     assert not unexecuted_stage_object_action("我提议稍后把便条递给沈舟。")
 
 
@@ -92,6 +100,94 @@ def test_claim_diagnostics_report_all_causes_without_source_contents():
     assert claim_issues({"text": "你说“另一句话”", "claims": []}, sources, observations, "原话") == [
         {"code": "recalled_quote_mismatch"}
     ]
+
+
+def test_conditional_notice_cannot_ground_asserted_nonreceipt():
+    conditional = "遇强风停航，复航时间由值班员收到通知后公布。"
+    speech = {
+        "text": "通知还没到，我不会报时间。",
+        "claims": [
+            {
+                "text": "通知还没到",
+                "source_id": "notice",
+                "quote": "收到通知后公布",
+                "mode": "fact",
+            }
+        ],
+    }
+    sources = {"notice": conditional}
+    assert claim_issues(speech, sources, [], "") == [
+        {"claim_index": 0, "code": "notice_receipt_not_in_quote"}
+    ]
+    speech["text"] = "我还没收到任何复航通知。"
+    speech["claims"] = []
+    assert claim_issues(speech, sources, [], "") == [{"code": "notice_receipt_unclaimed"}]
+    speech["text"] = "复航通知目前没到我这里，我不知道几点能走。"
+    assert claim_issues(speech, sources, [], "") == [{"code": "notice_receipt_unclaimed"}]
+    speech["text"] = "现在通知没下来，我不会提前公布复航时间。"
+    assert claim_issues(speech, sources, [], "") == [{"code": "notice_receipt_unclaimed"}]
+    speech["text"] = "复航消息尚未下达，我不会提前公布时间。"
+    assert claim_issues(speech, sources, [], "") == [{"code": "notice_receipt_unclaimed"}]
+    speech["text"] = "复航通知目前没到我这里，我不知道几点能走。"
+    speech["claims"] = [
+        {
+            "text": "复航通知目前没到我这里",
+            "source_id": "notice",
+            "quote": "收到通知后公布",
+            "mode": "fact",
+        }
+    ]
+    assert claim_issues(speech, sources, [], "") == [
+        {"claim_index": 0, "code": "notice_receipt_not_in_quote"}
+    ]
+    speech["text"] = "现在通知没下来，我不会提前公布复航时间。"
+    speech["claims"][0]["text"] = "现在通知没下来"
+    assert claim_issues(speech, sources, [], "") == [
+        {"claim_index": 0, "code": "notice_receipt_not_in_quote"}
+    ]
+    speech["claims"] = []
+    speech["text"] = "我暂时不知道有没有新通知。"
+    speech["claims"] = []
+    assert claim_issues(speech, sources, [], "") == []
+    speech["text"] = "我没法确认通知到没到。"
+    assert claim_issues(speech, sources, [], "") == []
+    confirmed = "值班员刚确认：通知还没到。"
+    speech["text"] = "通知还没到。"
+    speech["claims"] = [
+        {"text": "通知还没到", "source_id": "confirmed", "quote": "通知还没到", "mode": "fact"}
+    ]
+    assert claim_issues(speech, {"confirmed": confirmed}, [], "") == []
+
+
+def test_elliptical_resumption_time_receipt_still_needs_actual_receipt_evidence():
+    text = "复航的时间我也没接到，不替谁定。"
+    conditional = "遇强风停航，复航时间由值班员收到通知后公布。"
+    assert claim_issues({"text": text, "claims": []}, {"notice": conditional}, [], "") == [
+        {"code": "notice_receipt_unclaimed"}
+    ]
+    claim = {"text": text, "source_id": "notice", "quote": conditional, "mode": "fact"}
+    assert claim_issues({"text": text, "claims": [claim]}, {"notice": conditional}, [], "") == [
+        {"claim_index": 0, "code": "notice_receipt_not_in_quote"}
+    ]
+    for alternative in (
+        "复航时间，我没接到。",
+        "如果通知还没到，我就先等等。",
+        "我不知道复航时间，不替谁定。",
+        "若是没收到通知，我们可以再讨论。",
+    ):
+        expected = [{"code": "notice_receipt_unclaimed"}] if alternative.startswith("复航时间") else []
+        assert claim_issues({"text": alternative, "claims": []}, {}, [], "") == expected
+    conditional_claim = {
+        "text": "通知还没到",
+        "source_id": "if",
+        "quote": "如果通知还没到，先等。",
+        "mode": "fact",
+    }
+    assert claim_issues(
+        {"text": "通知还没到", "claims": [conditional_claim]}, {"if": conditional_claim["quote"]}, [], ""
+    ) == [{"claim_index": 0, "code": "notice_receipt_not_in_quote"}]
+    confirmed = {**claim, "source_id": "actual", "quote": text}
+    assert claim_issues({"text": text, "claims": [confirmed]}, {"actual": text}, [], "") == []
 
 
 def test_subjective_or_unconfirmed_host_record_cannot_authorize_fact():
@@ -318,14 +414,14 @@ async def test_second_semantic_repair_requires_review_before_publication(db, con
     speeches = iter(
         [
             {"text": "雨已经停了。", "claims": []},
-            {"text": "雨还没下。", "claims": []},
+            {"text": "雨马上就下。", "claims": []},
             {"text": "我们可以去窗边看看。", "claims": []},
         ]
     )
     reviews = iter(
         [
             {"accepted": False, "issues": ["目前没有雨已停的证据"]},
-            {"accepted": False, "issues": ["目前没有雨未下的证据"]},
+            {"accepted": False, "issues": ["目前没有即将下雨的证据"]},
             {"accepted": True, "issues": []},
         ]
     )
@@ -339,7 +435,7 @@ async def test_second_semantic_repair_requires_review_before_publication(db, con
     assert len([c for c in fake.calls if c[0] == "actor_review"]) == 3
     final_prompt = [c for c in fake.calls if c[0] == "dialogue"][-1][1][-1]["content"]
     assert "最后一次修复" in final_prompt
-    assert "雨还没下" in final_prompt and "雨已经停了" not in final_prompt
+    assert "雨马上就下" in final_prompt and "雨已经停了" not in final_prompt
 
 
 async def test_citation_repair_does_not_consume_semantic_repair(db, config, runtime, fake):
@@ -389,6 +485,245 @@ async def test_text_citation_handle_is_repaired_before_review_and_publish(db, co
     assert result["answer"] == "我会先核对，不把猜测当成事实。"
     assert len([call for call in fake.calls if call[0] == "dialogue"]) == 2
     assert len([call for call in fake.calls if call[0] == "actor_review"]) == 1
+
+
+async def test_nonreceipt_repair_explains_unknown_vs_unreceived_without_relaxing_gate(
+    db, config, runtime, fake
+):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    speeches = iter(
+        [
+            {"text": "我没收到通知，时间就说不准。", "claims": []},
+            {"text": "复航时间我现在说不准；有没有新通知，我也无法核实。", "claims": []},
+        ]
+    )
+    fake.replies["dialogue"] = lambda _: next(speeches)
+    runtime.submit(player, config.workspace_owner, "请说你现在知道什么", "notice-repair-specific")
+    result = await Agents(db, config, runtime, fake).respond(runtime.claim("foreground"))
+    assert result["answer"] == "复航时间我现在说不准；有没有新通知，我也无法核实。"
+    calls = [call for call in fake.calls if call[0] == "dialogue"]
+    assert len(calls) == 2
+    assert "不证明现在尚未收到" in calls[-1][1][-1]["content"]
+    assert len([call for call in fake.calls if call[0] == "actor_review"]) == 1
+
+
+async def test_rejected_part_is_pruned_then_reviewed_before_submission(db, config, runtime, fake):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    bad, retained = "公告栏在左手边。", "你看过以后，愿意的话回来聊聊。"
+    fake.replies["dialogue"] = {
+        "text": bad + "\n\n" + retained,
+        "spoken_parts": [bad, retained],
+        "claims": [],
+    }
+    reviews = iter(
+        [
+            {
+                "accepted": False,
+                "issues": ["布局没有依据"],
+                "checks": [
+                    {
+                        "text": bad,
+                        "supported": False,
+                        "reason_code": "unsupported_fact",
+                        "basis": "未设定布局",
+                    }
+                ],
+            },
+            {"accepted": True, "issues": []},
+        ]
+    )
+    fake.replies["actor_review"] = lambda _: next(reviews)
+    runtime.submit(player, config.workspace_owner, "我自己去看看", "prune-and-review")
+    result = await Agents(db, config, runtime, fake).respond(runtime.claim("foreground"))
+    assert result["answer"] == retained
+    assert len([call for call in fake.calls if call[0] == "dialogue"]) == 1
+    reviewed = [call for call in fake.calls if call[0] == "actor_review"]
+    assert len(reviewed) == 2
+    payload = json.loads(reviewed[-1][1][-1]["content"])
+    assert payload["candidate"] == retained
+
+
+async def test_pruned_safe_fragment_still_needs_to_answer_the_task(db, config, runtime, fake):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    bad, invitation = "公告栏在左手边。", "你看过以后，愿意的话回来聊聊。"
+    speeches = iter(
+        [
+            {"text": bad + "\n\n" + invitation, "spoken_parts": [bad, invitation], "claims": []},
+            {"text": "公告栏的具体方位，我现在没法告诉你。", "claims": []},
+        ]
+    )
+    fake.replies["dialogue"] = lambda _: next(speeches)
+    reviews = iter(
+        [
+            {
+                "accepted": False,
+                "issues": ["没有位置依据"],
+                "checks": [
+                    {
+                        "text": bad,
+                        "supported": False,
+                        "basis": "无位置记录",
+                        "reason_code": "unsupported_fact",
+                    }
+                ],
+            },
+            {"accepted": False, "issues": ["邀请回来未回答本轮方位问题；应明确当前未知。"]},
+            {"accepted": True, "issues": []},
+        ]
+    )
+    fake.replies["actor_review"] = lambda _: next(reviews)
+    runtime.submit(player, config.workspace_owner, "公告栏具体在哪里？", "pruning-not-task-completion")
+    result = await Agents(db, config, runtime, fake).respond(runtime.claim("foreground"))
+    assert result["answer"] == "公告栏的具体方位，我现在没法告诉你。"
+    assert len([call for call in fake.calls if call[0] == "dialogue"]) == 2
+    assert len([call for call in fake.calls if call[0] == "actor_review"]) == 3
+
+
+async def test_fact_failure_recovers_only_purpose_and_keeps_player_request(db, config, runtime, fake):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    intents = iter(
+        [
+            intention(player, purpose="告诉玩家公告栏在何处"),
+            {"purpose": "回答公告栏的具体位置问题；当前没有位置依据则明确本人未知。"},
+        ]
+    )
+    fake.replies["role_intent"] = lambda _: next(intents)
+    bad, answer = "公告栏就在检票口左侧。", "公告栏具体在哪儿，我现在说不准。"
+    speeches = iter([{"text": bad, "claims": []}, {"text": answer, "claims": []}])
+    fake.replies["dialogue"] = lambda _: next(speeches)
+    reviews = iter(
+        [
+            {
+                "accepted": False,
+                "issues": ["位置无依据"],
+                "checks": [
+                    {
+                        "text": bad,
+                        "basis": "只有值班员身份，没有位置。",
+                        "supported": False,
+                        "reason_code": "unsupported_fact",
+                    }
+                ],
+            },
+            {"accepted": True, "issues": []},
+        ]
+    )
+    fake.replies["actor_review"] = lambda _: next(reviews)
+    runtime.submit(player, config.workspace_owner, "公告栏具体在哪里？", "fact-purpose-recovery")
+    result = await Agents(db, config, runtime, fake).respond(runtime.claim("foreground"))
+    assert result["answer"] == answer
+    segment = result["segments"][0]
+    assert segment["intent"]["addressee_id"] == player
+    assert segment["intent"]["purpose"].startswith("回答公告栏的具体位置问题")
+    calls = [call for call in fake.calls if call[0] == "role_intent"]
+    assert len(calls) == 2
+    payload = json.loads(calls[-1][1][-1]["content"])
+    assert payload["current_player_request"] == "公告栏具体在哪里？"
+    assert payload["original_intent"]["addressee_id"] == player
+    assert len([call for call in fake.calls if call[0] == "dialogue"]) == 2
+    assert len([call for call in fake.calls if call[0] == "actor_review"]) == 2
+
+
+async def test_negative_weather_needs_evidence_before_a_reviewer_can_accept_it(db, config, runtime, fake):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    bad = "风还没真压下来。"
+    safe = "此刻的风势，我现在说不准。"
+    speeches = iter([{"text": bad, "claims": []}, {"text": safe, "claims": []}])
+    fake.replies["dialogue"] = lambda _: next(speeches)
+    fake.replies["actor_review"] = {"accepted": True, "issues": []}
+    runtime.submit(player, config.workspace_owner, "说清楚你现在知道的天气。", "negative-weather-local-gate")
+    result = await Agents(db, config, runtime, fake).respond(runtime.claim("foreground"))
+    assert result["answer"] == safe
+    reviews = [call for call in fake.calls if call[0] == "actor_review"]
+    assert len(reviews) == 1
+    assert json.loads(reviews[0][1][-1]["content"])["candidate"] == safe
+
+
+async def test_local_fact_pruning_is_reviewed_before_publication(db, config, runtime, fake):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    parts = ["登记册原文我没读过。", "登记册的内容我现在不清楚。"]
+    fake.replies["dialogue"] = {"text": "".join(parts), "spoken_parts": parts, "claims": []}
+    runtime.submit(player, config.workspace_owner, "登记册原文写什么？", "local-prune")
+    result = await Agents(db, config, runtime, fake).respond(runtime.claim("foreground"))
+    assert result["answer"] == parts[1]
+    assert len([c for c in fake.calls if c[0] == "dialogue"]) == 1
+    reviews = [c for c in fake.calls if c[0] == "actor_review"]
+    assert len(reviews) == 1
+    assert json.loads(reviews[0][1][-1]["content"])["candidate"] == parts[1]
+
+
+async def test_pruned_local_candidate_must_still_answer_the_original_question(db, config, runtime, fake):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    speeches = iter(
+        [
+            {
+                "text": "登记册原文我没读过。你好。",
+                "spoken_parts": ["登记册原文我没读过。", "你好。"],
+                "claims": [],
+            },
+            {"text": "登记册的内容我现在不清楚。", "claims": []},
+        ]
+    )
+    reviews = iter(
+        [
+            {"accepted": False, "issues": ["剩余台词没有回答原问题"]},
+            {"accepted": True, "issues": []},
+        ]
+    )
+    fake.replies["dialogue"] = lambda _: next(speeches)
+    fake.replies["actor_review"] = lambda _: next(reviews)
+    runtime.submit(player, config.workspace_owner, "登记册原文写什么？", "local-prune-missing-answer")
+    result = await Agents(db, config, runtime, fake).respond(runtime.claim("foreground"))
+    assert result["answer"] == "登记册的内容我现在不清楚。"
+    assert len([c for c in fake.calls if c[0] == "dialogue"]) == 2
+    assert len([c for c in fake.calls if c[0] == "actor_review"]) == 2
+
+
+async def test_purpose_recovery_is_once_and_never_authorizes_unsafe_speech(db, config, runtime, fake):
+    from chatbot.npc.performance import UnsafeDraftExhausted
+
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        _, _, player = launch(client)
+    intents = iter([intention(player, purpose="说明公告栏方位"), {"purpose": "仍然说明公告栏方位"}])
+    fake.replies["role_intent"] = lambda _: next(intents)
+    bad = "公告栏在检票口左边。"
+    fake.replies["dialogue"] = {"text": bad, "claims": []}
+    fake.replies["actor_review"] = {
+        "accepted": False,
+        "issues": ["无位置依据"],
+        "checks": [{"text": bad, "basis": "没有位置", "supported": False, "reason_code": "unsupported_fact"}],
+    }
+    runtime.submit(player, config.workspace_owner, "公告栏在哪儿？", "purpose-recovery-bounded")
+    task = runtime.claim("foreground")
+    with pytest.raises(UnsafeDraftExhausted):
+        await Agents(db, config, runtime, fake).respond(task)
+    assert len([call for call in fake.calls if call[0] == "role_intent"]) == 2
+    assert len([call for call in fake.calls if call[0] == "dialogue"]) == 3
+    with db.session() as s:
+        assert not list(
+            s.scalars(
+                select(SceneRecord).where(
+                    SceneRecord.task_id == task.id,
+                    SceneRecord.kind == "speech",
+                    SceneRecord.actor_id != player,
+                )
+            )
+        )
 
 
 async def test_stale_goal_id_is_repaired_during_intent_planning(db, config, runtime, fake):

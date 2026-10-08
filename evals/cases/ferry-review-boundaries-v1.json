@@ -1,0 +1,89 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "ferry-review-boundaries-v1",
+  "version": 1,
+  "scope": "approved synthetic ferry dialogue; fixed reviewer boundary probes, not held out",
+  "defaults": {
+    "info": {
+      "profile": {
+        "name": "阿岚",
+        "core": "你是渡船船长，重视安全。",
+        "world": "虚构的候船亭"
+      },
+      "observations": [
+        {
+          "id": "player_words",
+          "kind": "speech",
+          "text": "公告说强风停航；请你们先互相谈谈各自怎么看，别替值班员宣布复航时间。",
+          "actor_id": "player",
+          "speaker": "旅人"
+        }
+      ],
+      "scene_facts": {
+        "distant_thunder": {
+          "event_id": "distant_thunder",
+          "value": "一阵雷声从远处传来。",
+          "basis": "confirmed"
+        }
+      }
+    },
+    "sources": {
+      "player_words": "公告说强风停航；请你们先互相谈谈各自怎么看，别替值班员宣布复航时间。",
+      "distant_thunder": "一阵雷声从远处传来。"
+    },
+    "intent": {
+      "act": "speak",
+      "purpose": "先回应旅人，然后与沈舟讨论各自的看法。",
+      "deception": false,
+      "addressee_id": "peer"
+    },
+    "cast": [
+      {"id": "npc", "name": "阿岚"},
+      {"id": "peer", "name": "沈舟"},
+      {"id": "player", "name": "旅人"}
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "handoff-single-pending",
+      "pair_id": "handoff",
+      "factor": "pending_addressees",
+      "variant": "one",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "rationale": "简短回应玩家后，仅向沈舟提出一个待答问题。",
+      "speech": {"text": "旅人，我听见你说公告强风停航。沈舟，你怎么看？", "claims": []}
+    },
+    {
+      "case_id": "handoff-two-pending",
+      "pair_id": "handoff",
+      "factor": "pending_addressees",
+      "variant": "two",
+      "expected_accept": false,
+      "expected_reason_codes": ["mixed_recipient"],
+      "rationale": "向玩家索取便条，同时要求沈舟回答，存在两个待答对象。",
+      "speech": {"text": "旅人，你能把便条给我吗？沈舟，你怎么看？", "claims": []}
+    },
+    {
+      "case_id": "unsupported-prop-action",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "未提供香烟，不能在动作里预设持有并掐灭。",
+      "speech": {"text": "（阿岚把烟按灭）我会先等新的消息。", "claims": []}
+    },
+    {
+      "case_id": "unsupported-negative-weather",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "已知远处雷声不能证明当前没有下雨。",
+      "speech": {"text": "现在雨还没下，我会先等新的消息。", "claims": []}
+    },
+    {
+      "case_id": "personal-waiting-commitment",
+      "expected_accept": true,
+      "expected_expects_reply": false,
+      "rationale": "个人选择等待新的正式消息，不是在断言渡口规章。",
+      "speech": {"text": "我会先等新的正式消息，再决定我的船何时走。", "claims": []}
+    }
+  ]
+}

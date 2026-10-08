@@ -1,0 +1,84 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-archive-provenance-v1",
+  "version": 1,
+  "scope": "Frozen synthetic archive provenance pairs derived from r119/r120; reviewer component only",
+  "cases": [
+    {
+      "case_id": "speaker-self-as-anonymous-hearer",
+      "pair_id": "speaker-provenance",
+      "factor": "own_prior_speech",
+      "variant": "contradiction",
+      "expected_accept": false,
+      "rationale": "林岚是原话说话者，不能改称自己只是听见某人说过。",
+      "info": {
+        "profile": {"name": "林岚", "core": "档案馆馆长。", "world": "虚构档案馆"},
+        "observations": [{"id": "own_line", "kind": "speech", "text": "盒子在楼上，钥匙在暗格。", "actor_id": "npc", "speaker": "林岚"}],
+        "scene_facts": {"own_line": {"event_id": "own_line", "value": "林岚在阅览室说过‘盒子在楼上，钥匙在暗格’。", "basis": "confirmed"}},
+        "known_objects": [], "active_goals": {}
+      },
+      "sources": {"own_line": "林岚在阅览室说过‘盒子在楼上，钥匙在暗格’。"},
+      "speech": {"text": "我在阅览室的时候，听见有人提到盒子在楼上、钥匙在暗格。", "claims": []},
+      "intent": {"act": "speak", "deception": false, "addressee_id": "player"},
+      "player_request": "请说清你亲身知道什么。",
+      "cast": [{"id": "npc", "name": "林岚"}, {"id": "player", "name": "访客"}]
+    },
+    {
+      "case_id": "speaker-owns-own-line",
+      "pair_id": "speaker-provenance",
+      "factor": "own_prior_speech",
+      "variant": "grounded",
+      "expected_accept": true,
+      "rationale": "本人正确承认说过原话，但没有宣称盒子位置已被核实。",
+      "info": {
+        "profile": {"name": "林岚", "core": "档案馆馆长。", "world": "虚构档案馆"},
+        "observations": [{"id": "own_line", "kind": "speech", "text": "盒子在楼上，钥匙在暗格。", "actor_id": "npc", "speaker": "林岚"}],
+        "scene_facts": {"own_line": {"event_id": "own_line", "value": "林岚在阅览室说过‘盒子在楼上，钥匙在暗格’。", "basis": "confirmed"}},
+        "known_objects": [], "active_goals": {}
+      },
+      "sources": {"own_line": "林岚在阅览室说过‘盒子在楼上，钥匙在暗格’。"},
+      "speech": {"text": "我在阅览室说过‘盒子在楼上，钥匙在暗格’，但那是我的说法，位置还没核实。", "claims": []},
+      "intent": {"act": "speak", "deception": false, "addressee_id": "player"},
+      "player_request": "请说清你亲身知道什么。",
+      "cast": [{"id": "npc", "name": "林岚"}, {"id": "player", "name": "访客"}]
+    },
+    {
+      "case_id": "witness-denies-seeing",
+      "pair_id": "witness-provenance",
+      "factor": "confirmed_witnessed_action",
+      "variant": "contradiction",
+      "expected_accept": false,
+      "rationale": "已提供角色亲眼见到许遥放置登记册，候选却否认在场及目击。",
+      "info": {
+        "profile": {"name": "周澈", "core": "档案馆修复师。", "world": "虚构档案馆"},
+        "observations": [{"id": "registry_placement", "kind": "host", "text": "周澈在门厅亲眼看见许遥把借阅登记册放到桌上。", "detail": {"basis": "witnessed"}}],
+        "scene_facts": {"registry_placement": {"event_id": "registry_placement", "value": "周澈在门厅亲眼看见许遥把借阅登记册放到桌上。", "basis": "witnessed"}},
+        "known_objects": [], "active_goals": {}
+      },
+      "sources": {"registry_placement": "周澈在门厅亲眼看见许遥把借阅登记册放到桌上。"},
+      "speech": {"text": "许遥把借阅登记册放到门厅桌上那会儿，我不在场，也没亲眼看见。", "claims": []},
+      "intent": {"act": "speak", "deception": false, "addressee_id": "player"},
+      "player_request": "你看见了什么？",
+      "cast": [{"id": "npc", "name": "周澈"}, {"id": "player", "name": "访客"}]
+    },
+    {
+      "case_id": "witness-reports-seeing",
+      "pair_id": "witness-provenance",
+      "factor": "confirmed_witnessed_action",
+      "variant": "grounded",
+      "expected_accept": true,
+      "rationale": "只报告已提供的亲眼观察，没有推断登记内容或交接责任。",
+      "info": {
+        "profile": {"name": "周澈", "core": "档案馆修复师。", "world": "虚构档案馆"},
+        "observations": [{"id": "registry_placement", "kind": "host", "text": "周澈在门厅亲眼看见许遥把借阅登记册放到桌上。", "detail": {"basis": "witnessed"}}],
+        "scene_facts": {"registry_placement": {"event_id": "registry_placement", "value": "周澈在门厅亲眼看见许遥把借阅登记册放到桌上。", "basis": "witnessed"}},
+        "known_objects": [], "active_goals": {}
+      },
+      "sources": {"registry_placement": "周澈在门厅亲眼看见许遥把借阅登记册放到桌上。"},
+      "speech": {"text": "我在门厅看见许遥把借阅登记册放到桌上；那页写了什么，我还不知道。", "claims": []},
+      "intent": {"act": "speak", "deception": false, "addressee_id": "player"},
+      "player_request": "你看见了什么？",
+      "cast": [{"id": "npc", "name": "周澈"}, {"id": "player", "name": "访客"}]
+    }
+  ]
+}

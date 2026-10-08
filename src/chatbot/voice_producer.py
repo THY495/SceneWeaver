@@ -4,7 +4,7 @@ import asyncio
 from dataclasses import replace
 
 from . import voice_spool
-from .observability.timing import annotate, measure
+from .observability.timing import annotate, measure, timed
 from .providers import ProviderError
 from .storage import Operation
 
@@ -52,7 +52,12 @@ class CandidateProducers:
                 if not ready.done():
                     ready.set_result(entry["audio"])
             except BaseException as exc:
-                annotate(audio_status="cancelled" if isinstance(exc, asyncio.CancelledError) else "failed")
+                # The exception class is local code metadata; never export its
+                # message, provider frame, URL or credentials into a timing trace.
+                annotate(
+                    audio_status="cancelled" if isinstance(exc, asyncio.CancelledError) else "failed",
+                    audio_error_type=type(exc).__name__,
+                )
                 if entry["key"]:
                     with self.service.db.session.begin() as s:
                         row = s.get(Operation, entry["key"])
@@ -93,6 +98,7 @@ class CandidateProducers:
                 await self._discard(entry)
                 return
 
+    @timed("voice.producer_finalize")
     async def close(self):
         """Drain published tails while the turn lease is alive; discard the rest."""
         try:
@@ -104,10 +110,17 @@ class CandidateProducers:
                 if bound:
                     published.append(entry["producer"])
                 else:
-                    await self._discard(entry)
-            if published:
-                await asyncio.gather(*published)
+                    with measure("voice.unpublished_discard"):
+                        await self._discard(entry)
+            with measure("voice.published_drain"):
+                annotate(
+                    published_producer_count=len(published),
+                    pending_published_producer_count=sum(not producer.done() for producer in published),
+                )
+                if published:
+                    await asyncio.gather(*published)
         finally:
-            for entry in self.entries:
-                await self._discard(entry)
-            self.entries.clear()
+            with measure("voice.producer_cleanup"):
+                for entry in self.entries:
+                    await self._discard(entry)
+                self.entries.clear()

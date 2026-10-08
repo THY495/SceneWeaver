@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { RequestFailure } from './apiRequest'
 import { VoicePanel } from './VoicePanel'
 import { VideoPlayer } from './VideoPlayer'
 import { ServiceReadiness } from './ServiceReadiness'
@@ -236,6 +237,7 @@ export function NovelPlay({
   })
   const presence = useRef({ visible: false, typing: true, voice_enabled: false })
   const attemptedAuto = useRef('')
+  const autoRetry = useRef({ key: '', count: 0, after: 0 })
   useEffect(() => {
     const ready = frame?.auto_ready
     if (
@@ -256,7 +258,9 @@ export function NovelPlay({
     )
       return
     const key = `${frame.node_id}:${ready.through_seq}`
+    if (autoRetry.current.key !== key) autoRetry.current = { key, count: 0, after: 0 }
     if (attemptedAuto.current === key) return
+    if (Date.now() < autoRetry.current.after) return
     const lastSeq = events.reduce((n, event) => Math.max(n, event.seq), 0)
     if (lastSeq < ready.through_seq) return
     attemptedAuto.current = key
@@ -266,11 +270,24 @@ export function NovelPlay({
       body: JSON.stringify({ through_seq: ready.through_seq }),
     })
       .then(async (raw) => {
+        autoRetry.current = { key: '', count: 0, after: 0 }
         await refreshRef.current()
         const next = raw as Frame
         if (next.entry_event_id) setSelected(next.entry_event_id + ':0')
       })
-      .catch((e) => setFailure(String(e)))
+      .catch((e) => {
+        if (e instanceof RequestFailure && e.status === 409) {
+          // A route can become visible just before another story task releases
+          // its lock. Refresh on the next poll and retry the same route once
+          // that task has finished; never strand the player after one conflict.
+          attemptedAuto.current = ''
+          const count = autoRetry.current.count + 1
+          autoRetry.current = { key, count, after: Date.now() + Math.min(5000, 1500 * count) }
+          if (count >= 5) setFailure('自动转场暂未完成，请稍后点击重新读取。')
+          return
+        }
+        setFailure(String(e))
+      })
       .finally(() => setWorking(false))
   }, [
     frame,
@@ -284,6 +301,8 @@ export function NovelPlay({
     line?.id,
     progressReady,
     progressSaving,
+    snapshot?.interaction.allowed,
+    events,
   ])
   presence.current = {
     visible: document.visibilityState === 'visible',
@@ -903,6 +922,7 @@ export function NovelPlay({
           <button
             onClick={() => {
               attemptedAuto.current = ''
+              autoRetry.current = { key: '', count: 0, after: 0 }
               void refreshRef.current()
             }}
           >

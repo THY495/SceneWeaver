@@ -10,14 +10,18 @@ ROLE_EXPRESSION_POLICY = """
 区分事实断言、转述、主观信念、假设、提问、提议、单方承诺和已完成行动。
 没有阅读记录不证明角色“从未看过”材料；这种过去未发生的断言仍需角色经历依据。
 角色可以表达当下无法核实或不掌握原文，不必为承认不确定性提供一次过去未阅读的记录；已有相反确认事实除外。
-职业身份只说明身份，不自动提供本机构的办理规则、必填资料、收费或准入条件。
-“办理要提供某资料”“不满足就不能办理”是规则断言，即使没有说“规定”也需要已知依据；
-不能因为角色在当下说明，就把它降格成自由提议。明确可拒绝的个人建议可以提出，
-但不能增加已有任务的必备条件；不知道真实规则时可承认需要核实，不能借常识补造。
-“是否办理由你决定”只表示可放弃整个任务，不表示所列资料是可拒绝的个人建议；
-“目前我会用到”“还差某资料才能继续”同样断言办理条件，不能标成proposal来免除依据检查。
-“你方便时再给”只放宽时间，不取消该条件。此前角色自己说过这个条件也不使它成为真实规则。
-个人建议可明确允许拒绝，但不能顺带保证未知的办理资格不受影响；作者已明确提供的规则可以按原范围说明。
+人物身份不自动赋予未设定的场所规则、必要物品、能力或权限。
+“必须先找到某物才能进入”“缺少某条件就无法继续”若被说成世界规则，需要已知依据；
+改说“我现在还差某物”仍在断言前提，不能标成proposal来免除依据检查。
+“还差X”“给我X就接着做”把X设成后续行动的条件；语气温和、由本人提出或允许稍后提供，
+都不能使未设定的条件自动成立。旧发言只证明角色曾提出过，不证明它是有效规则。
+角色可以提出明确可拒绝的个人建议，但不能把建议变成已设定的必经步骤，
+也不能保证未经确认的结果。玩家可放弃整个行动，不表示角色列出的前置条件是可选的。
+“不提供X也不影响Y”是在断言X与Y的规则关系；尊重对方选择只证明不会强迫，
+不证明世界结果必然不受影响，仍需依据。
+“供将来做Y”仅说明建议的可能用途，不保证Y会发生；未预设的、可拒绝且不改变世界规则的小建议可提出。
+“稍后再拿来”只调整时间，不使无据前提成立；此前角色自己说过也不证明它为真。
+作者已明确提供的规则可按原范围说明，未知规则不能借常识补造。
 提问和假设不代表事件发生；但“你为什么偷了钥匙”预设偷窃，需要检查这个预设。
 角色可基于已有个人信念误解事实，必须有该信念依据；不得以“我觉得”包装任意新增线索。
 有动机的谎言只构成发言事件，不修改世界真相。来源原文存在不等于支持断言的时间、主体和完成状态。
@@ -26,6 +30,20 @@ ROLE_EXPRESSION_POLICY = """
 工作集、观察记录和来源ID是系统的呈现方式，不是世界中的文件。听到发言应说听到，
 不能因为工作集写着记录就声称看过记录、查过日志；只有明确的阅读经历或实际检索材料支持时才可这样说。
 知道某个事实与如何获知是两个断言，不能擅自补造获知过程；匿名听闻不能被补成已辨认的说话者。
+"""
+
+
+# The actor needs a compact, in-world performance brief. Detailed adversarial
+# examples above belong to the reviewer and assignment checks, not the voice
+# that the player hears.
+ROLE_PERFORMANCE_POLICY = """
+关键设定严格、局部表达自由。依据角色经历、实际见闻和已确认的世界状态说话。
+不知道外部状态时只说不知道；不要把“我不知道”说成“风还没停”或“通知还没来”。
+表情、停顿和不改变世界状态的小动作可按人物性格自然发挥。
+历史言论只证明有人这样说过；传闻与个人判断保留它们原有的不确定性。
+人物身份不自动提供未写明的世界规则、经历或物证。当前的提议与承诺可以产生，
+但不能说成早已完成的行动或双方已有的约定。玩家的选择和行动由玩家自己决定。
+未知之处用人物在场会说的话表达，并可提出眼下能做的事；台词始终留在故事世界里。
 """
 
 
@@ -48,10 +66,17 @@ def director_handoff_leak(text: str) -> bool:
 _STAGE_DIRECTION = re.compile(r"[（(]([^（）()]*)[）)]")
 _STAGE_OBJECT_MUTATION = re.compile(
     r"(?:把|将)(.{1,16}?)(?:按灭|点燃|拿起|拾起|捡起|放下|递给|交给|藏起|藏进|"
-    r"扔掉|销毁|撕毁|打开|关上|合上|取出|放进|装进|塞进)"
+    r"扔掉|销毁|撕毁|撕碎|捏皱|揉皱|打开|关上|合上|取出|放进|装进|塞进)"
 )
-_BODY_EXPRESSION = re.compile(r"^(?:自己(?:的)?|他(?:的)?|她(?:的)?|一只|双)?"
-                              r"(?:手|头|眼|眼睛|目光|视线|脸|肩|身体|呼吸|声音|语速|话)$")
+_STAGE_HELD_OBJECT_MUTATION = re.compile(
+    r"(?:按灭|点燃|放下|拿起|拾起|捡起|递出|藏起|扔掉|撕毁|撕碎|捏皱|揉皱|打开|关上|合上)"
+    r"(?:了)?(?:自己)?手里(?:的)?([^，。；、]{1,12})"
+    r"|手里(?:的)?([^，。；、]{1,12}?)(?:被)?(?:捏皱|撕碎|揉皱|递出|扔掉)"
+)
+_BODY_EXPRESSION = re.compile(
+    r"^(?:自己(?:的)?|他(?:的)?|她(?:的)?|一只|双)?"
+    r"(?:手|头|眼|眼睛|目光|视线|脸|肩|身体|呼吸|声音|语速|话)$"
+)
 
 
 def unexecuted_stage_object_action(text: str) -> bool:
@@ -60,7 +85,14 @@ def unexecuted_stage_object_action(text: str) -> bool:
         for match in _STAGE_OBJECT_MUTATION.finditer(direction):
             if not _BODY_EXPRESSION.fullmatch(match.group(1).strip()):
                 return True
+        for match in _STAGE_HELD_OBJECT_MUTATION.finditer(direction):
+            object_name = (match.group(1) or match.group(2)).strip()
+            if object_name not in {"事", "工作", "活儿", "话"} and not _BODY_EXPRESSION.fullmatch(
+                object_name
+            ):
+                return True
     return False
+
 
 REVIEW_REASONS = frozenset(
     {
@@ -81,7 +113,7 @@ def semantic_review_marks(review):
     unsupported = [c for c in review.get("checks", []) if not c["supported"]]
     rejected = not review["accepted"] or bool(review.get("issues")) or bool(unsupported)
     marks = {"semantic_rejected" if rejected else "semantic_accepted"}
-    if not review["accepted"]:
+    if not review.get("provider_accepted", review["accepted"]):
         marks.add("review_flag_rejected")
     if review.get("issues"):
         marks.add("review_has_issues")
@@ -109,14 +141,44 @@ def invalid_claims(speech, sources):
     ]
 
 
+_NEGATIVE_NOTICE_RECEIPT = re.compile(
+    r"(?:通知|消息)(?:目前|现在|至今|仍然|依然|还)?(?:还没|尚未|未|没有|没)(?:到|来|送达|收到|下来|下达)"
+    r"|(?<!有)(?:还没|尚未|未|没有|没)(?:收到|接到).{0,6}(?:通知|消息)"
+    r"|复航(?:的)?时间[，, ]?(?:我|我们|本人)?(?:目前|现在|眼下|也|还|仍然|仍)?"
+    r"(?:还没|尚未|未|没有|没)(?:收到|接到)"
+)
+
+
+def asserted_notice_nonreceipt(text):
+    """A receipt assertion needs evidence; a local explicit hypothesis does not.
+
+    This deliberately recognizes a narrow notice/time vocabulary, not general
+    negative history or arbitrary pronoun resolution.
+    """
+    for match in _NEGATIVE_NOTICE_RECEIPT.finditer(text):
+        prefix = re.split(r"[。！？!?；;，,\n]", text[: match.start()])[-1]
+        if not re.search(r"(?:如果|假如|若是|要是|倘若|若)[^，,。！？!?；;\n]{0,12}$", prefix):
+            return True
+    return False
+
+
 def claim_issues(speech, sources, observations, question):
     """All deterministic rejection causes; indexes refer only to this candidate.
 
     No candidate text, source IDs or quotations enter persisted timing records.
     These diagnostics explain existing checks; they do not authorize a claim.
     """
-    issues = []
+    from .npc.negative_fact_guard import negative_fact_issues
+
+    issues = negative_fact_issues(speech)
     promoted = invalid_statement_promotions(speech, observations)
+    if asserted_notice_nonreceipt(speech["text"]) and not any(
+        asserted_notice_nonreceipt(claim["text"]) for claim in speech["claims"]
+    ):
+        # The reviewer sometimes treats a conditional announcement as proof
+        # of present nonreceipt when the draft omits this assertion from claims.
+        # Require a cited claim so the quote-level check below can run.
+        issues.append({"code": "notice_receipt_unclaimed"})
     for index, claim in enumerate(speech["claims"]):
         codes = []
         if claim["source_id"] not in sources:
@@ -129,6 +191,12 @@ def claim_issues(speech, sources, observations, question):
             codes.append("claim_text_mismatch")
         if claim in promoted:
             codes.append("statement_promoted")
+        if asserted_notice_nonreceipt(claim["text"]) and not asserted_notice_nonreceipt(claim["quote"]):
+            # A conditional source ("after receiving a notice") does not prove
+            # that the notice has not arrived. Keep this narrow: uncertainty
+            # about receipt and a source that explicitly confirms nonreceipt
+            # remain available to the character.
+            codes.append("notice_receipt_not_in_quote")
         issues.extend({"claim_index": index, "code": code} for code in codes)
     if invalid_recalled_quotes(speech["text"], sources, question):
         issues.append({"code": "recalled_quote_mismatch"})
@@ -193,6 +261,11 @@ def review_grounding(info, evidence, speech, sources):
                 else "resolve_from_primary_grounding",
                 **({"already_in_primary": reference} if reference else {"text": source_text}),
                 **utterance_observation(observation),
+                **(
+                    {"addressees": observation.get("addressees", [])}
+                    if observation and observation.get("kind") == "speech"
+                    else {}
+                ),
                 "detail": {
                     k: v
                     for k, v in (observation.get("detail", {}) if observation else {}).items()
@@ -235,7 +308,8 @@ def recent_review_utterances(info, sources):
     recent = []
     remaining = 4000
     observations = [
-        e for e in info.get("observations", [])
+        e
+        for e in info.get("observations", [])
         if e.get("kind") == "speech" and e.get("id") in sources and "actor_id" in e
     ]
     for event in reversed(observations[-8:]):
@@ -246,7 +320,15 @@ def recent_review_utterances(info, sources):
         attribution = utterance_observation(event)
         if truncated:
             attribution["utterance_observation"]["complete"] = False
-        recent.append({"id": event["id"], "text": text, "excerpt_truncated": truncated, **attribution})
+        recent.append(
+            {
+                "id": event["id"],
+                "text": text,
+                "excerpt_truncated": truncated,
+                "addressees": event.get("addressees", []),
+                **attribution,
+            }
+        )
         remaining -= len(text)
     return list(reversed(recent))
 

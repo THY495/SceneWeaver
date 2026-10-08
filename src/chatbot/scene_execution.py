@@ -50,6 +50,7 @@ def commit_block(s, story, node, block, actors):
         actor=speaker,
         text=block["text"],
         observer_ids=[actors[a] for a in node["observers"]],
+        addressees=[actors[block["target"]]] if block.get("target") else None,
         channel="private",
         dedupe=f"narrative-node:{node['id']}"
         if not node.get("opening")
@@ -131,7 +132,10 @@ def install_routes(router, db, who):
                 select(Task.id)
                 .where(
                     Task.status.in_(["queued", "running", "waiting"]),
-                    Task.kind.in_(["respond", "scene_run", "npc_step"]),
+                    # Fixed player opening blocks can advance while unrelated
+                    # NPCs are active offscreen. Their commits recheck scene
+                    # validity against the player's actual location.
+                    Task.kind.in_(["respond", "npc_step"]),
                     (Task.session_id.in_(ids)) | (Task.payload["story_id"].as_string() == sid),
                 )
                 .limit(1)

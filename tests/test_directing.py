@@ -15,6 +15,7 @@ def test_direction_roundtrip_and_player_cannot_be_assigned(tmp_path):
     recipe = template("ferry-narrative")
     segment = beat().model_dump()
     segment["participants"] = [recipe["people"][0]["alias"]]
+    segment["role_focus"] = {segment["participants"][0]: "关注自己的航行判断"}
     direction = {"version": 1, "objective": "澄清分歧", "constraints": [], "beats": [segment]}
     recipe["narrative"]["nodes"][0]["direction"] = direction
     save_project(
@@ -27,6 +28,7 @@ def test_direction_roundtrip_and_player_cannot_be_assigned(tmp_path):
     assert reopened["format"] == "sceneweaver.story.v4"
     assert reopened["recipe"]["narrative"]["nodes"][0]["direction"] == direction
     segment["participants"] = [recipe["player"]["alias"]]
+    segment["role_focus"] = {segment["participants"][0]: "关注旅人自己的选择"}
     with pytest.raises(ValidationError, match="不能替玩家"):
         Recipe.model_validate(recipe)
 
@@ -43,6 +45,7 @@ def test_directed_package_exports_explicit_version_and_imports(db, config, fake)
     recipe = template("ferry-narrative")
     segment = beat().model_dump()
     segment["participants"] = [recipe["people"][0]["alias"]]
+    segment["role_focus"] = {segment["participants"][0]: "关注自己的航行判断"}
     recipe["narrative"]["nodes"][0]["direction"] = {"objective": "澄清", "beats": [segment]}
     with TestClient(create_app(config, db, fake)) as client:
         response = client.post("/api/role/packages/export", json=recipe)
@@ -56,6 +59,10 @@ def test_directed_package_exports_explicit_version_and_imports(db, config, fake)
         assert result.status_code == 200, result.text
         assert (
             result.json()["recipe"]["narrative"]["nodes"][0]["direction"]["beats"][0]["id"] == segment["id"]
+        )
+        assert (
+            result.json()["recipe"]["narrative"]["nodes"][0]["direction"]["beats"][0]["role_focus"]
+            == segment["role_focus"]
         )
 
 
@@ -74,6 +81,7 @@ def test_authored_director_starts_with_frozen_runtime_scope(db, config, runtime,
     recipe = template("ferry-narrative")
     segment = beat().model_dump()
     segment["participants"] = [recipe["people"][0]["alias"]]
+    segment["role_focus"] = {segment["participants"][0]: "关注自己的航行判断"}
     recipe["narrative"]["nodes"][0]["direction"] = {"objective": "澄清", "beats": [segment]}
     pid = str(uuid4())
     with TestClient(create_app(config, db, fake)) as client:
@@ -96,6 +104,9 @@ def test_authored_director_starts_with_frozen_runtime_scope(db, config, runtime,
             assert scoped is not None
             assert scoped.beat_id == segment["id"]
             assert len(scoped.eligible) == 1
+            assert scoped.direction.beats[0].role_focus == {
+                receipt["actors"][segment["participants"][0]]: "关注自己的航行判断"
+            }
 
 
 def test_incomplete_direction_is_draft_only():
@@ -111,6 +122,10 @@ def test_incomplete_direction_is_draft_only():
         SceneDirection.model_validate(draft.model_dump())
     value["beats"][0]["participants"] = ["a", "a"]
     with pytest.raises(ValidationError, match="重复"):
+        SceneDirection.model_validate(value, context={"authoring_draft": True})
+    value["beats"][0]["participants"] = ["a"]
+    value["beats"][0]["role_focus"] = {"b": "未参与角色"}
+    with pytest.raises(ValidationError, match="参与角色"):
         SceneDirection.model_validate(value, context={"authoring_draft": True})
 
 

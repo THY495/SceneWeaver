@@ -6,23 +6,18 @@ from ..director_planning import RecoveryPlanIncomplete
 from ..observations import observed_record
 from ..runtime import StaleTask
 from ..storage import Operation
-from .assignment import AssignmentRejected
+from .assignment import AssignmentRejected, ReplyCapacityRejected
 from .beat_progress import assess_beat
 from .directed_turn import execute_plan, preparation_gate
 from .director import prepare_scene_plan, snapshot
-from .performance import UnsafeDraftExhausted
+from .performance import ResponseContractConflict, UnsafeDraftExhausted
 
 
 def remaining_in_beat(db, task_id, beat):
+    from .exchange_requirement import beat_committed_event_ids
+
     with db.session() as s:
-        ledgers = s.scalars(select(Operation).where(Operation.id.startswith(f"{task_id}:director-ledger")))
-        events = {
-            candidate["event_id"]
-            for ledger in ledgers
-            if ledger.payload.get("plan", {}).get("beat_id") == beat.id
-            for candidate in ledger.payload.get("candidates", {}).values()
-            if candidate.get("status") == "committed" and candidate.get("event_id")
-        }
+        events = beat_committed_event_ids(s, task_id, beat.id)
     return max(0, beat.max_segments - len(events))
 
 
@@ -57,7 +52,17 @@ async def execute_recoverable(services, task, turn, ledger, memory, before):
         if not remaining:
             raise
         replacement = await prepare_scene_plan(
-            services, task, turn, max_jobs=remaining, recovery_reason=reason
+            services,
+            task,
+            turn,
+            max_jobs=remaining,
+            recovery_reason=reason,
+            recovery_hint="required_npc_reply_without_slot"
+            if isinstance(failure, ReplyCapacityRejected)
+            else "answer_only_with_intended_player_question"
+            if isinstance(failure, ResponseContractConflict)
+            else "",
+            recovery_notice=getattr(failure, "recovery_notice", None),
         )
         return replacement, await execute_plan(services, task, turn, replacement, memory)
 
@@ -76,6 +81,7 @@ async def respond_directed(services, task, turn, memory, saved_plan=None):
             "pending_reply_ids": [],
         }
     ledger = saved_plan or await prepare_scene_plan(services, task, turn)
+    independent_route = None
     # Cap a response across beat boundaries, not just each model's short plan.
     for _ in range(6):
         with services.db.session() as s:
@@ -83,18 +89,23 @@ async def respond_directed(services, task, turn, memory, saved_plan=None):
         try:
             ledger, result = await execute_recoverable(services, task, turn, ledger, memory, before)
         except (AssignmentRejected, UnsafeDraftExhausted, RecoveryPlanIncomplete):
-            # Earlier segments are already visible and cannot be rolled back. End
-            # this player task as an explicitly incomplete performance, without
-            # publishing an unauthorized assignment or rejected candidate, or
-            # assessing a route from either one.
+            # The performance and the player's action are separate outcomes.
+            # A rejected candidate never supplies route evidence or beat progress.
             with services.db.session() as s:
                 committed = s.scalar(
-                    select(Operation.id)
-                    .where(Operation.id.startswith(f"{task.id}:committed:"))
-                    .limit(1)
+                    select(Operation.id).where(Operation.id.startswith(f"{task.id}:committed:")).limit(1)
                 )
             if not committed:
-                raise
+                if task.kind != "respond" or not turn.player_id:
+                    raise
+                from ..auto_routing import assess
+
+                services.runtime.check(task.id, task.lease_version)
+                independent_route = await assess(
+                    services.db, services.provider, task, player_action_only=True
+                )
+                if not independent_route or not independent_route["accepted"]:
+                    raise
             result = {
                 "incremental": True,
                 "route": "player" if turn.player_id else "scene",
@@ -124,6 +135,9 @@ async def respond_directed(services, task, turn, memory, saved_plan=None):
             ledger = await prepare_scene_plan(services, task, turn, max_jobs=remaining)
             continue
         assessment = await assess_beat(services, task, turn, ledger["plan"]["beat_id"])
+        result["dialogue_requirement_met"] = assessment.get("npc_exchange_met")
+        if result["dialogue_requirement_met"] is False:
+            result["interaction_complete"] = False
         with services.db.session() as s:
             after = snapshot(s, task, turn)
             prefix = f"{task.id}:committed:"
@@ -167,11 +181,33 @@ async def respond_directed(services, task, turn, memory, saved_plan=None):
                 and request["status"] in {"open", "partial"}
                 and request["target_id"] != turn.player_id
             ]
+        from ..event_projection import requests_for
+
+        # after_beat may defer a question across a short-plan suffix. Once the
+        # bounded scene execution ends, keep it open and actually yield; never
+        # let autonomous work treat the unanswered question as a continuation.
+        waiting_for_player = [
+            request["question_id"]
+            for request in (requests_for(s, turn.player_id) if turn.player_id else [])
+            if request["task_id"] == task.id
+            and request["target_id"] == turn.player_id
+            and request["status"] in {"open", "partial"}
+        ]
+        if waiting_for_player and result["stop_reason"] == "limit":
+            result["stop_reason"] = "player_turn"
+        result["pending_player_question_ids"] = waiting_for_player
     result.update(
         segments=visible,
         actor_ids=[r["actor_id"] for r in visible],
         answer="\n\n".join(r["text"] for r in visible),
     )
+    if result["stop_reason"] == "safety_rejected" and turn.player_id and task.kind == "respond":
+        if independent_route is None:
+            from ..auto_routing import assess
+
+            services.runtime.check(task.id, task.lease_version)
+            independent_route = await assess(services.db, services.provider, task, player_action_only=True)
+        result["player_action_route_accepted"] = bool(independent_route and independent_route["accepted"])
     if turn.player_id and task.kind != "npc_step" and result["stop_reason"] == "player_turn" and after:
         # A handoff remains in force until this world/entry/player turn changes.
         # Capture the assessed snapshot, not a later state after routing or I/O.
@@ -182,6 +218,9 @@ async def respond_directed(services, task, turn, memory, saved_plan=None):
             "epoch": task.epoch,
         }
     if result["stop_reason"] not in {"paused", "safety_rejected"} and task.kind != "npc_step":
+        from .beat_reuse import remember_frame
+
+        remember_frame(services, task, turn, result)
         from ..auto_routing import assess
 
         await assess(services.db, services.provider, task)

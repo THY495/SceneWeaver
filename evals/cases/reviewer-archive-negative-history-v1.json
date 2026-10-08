@@ -1,0 +1,172 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-archive-negative-history-v1",
+  "version": 1,
+  "scope": "Frozen synthetic boundary controls motivated by r129/r130; not independent holdout or full-story replay; not yet sent to provider",
+  "defaults": {
+    "actor_id": "npc",
+    "info": {
+      "profile": {
+        "name": "林岚",
+        "core": "档案馆馆长。",
+        "world": "虚构档案馆"
+      },
+      "scene_facts": {},
+      "observations": [],
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {},
+    "intent": {
+      "act": "speak",
+      "deception": false,
+      "addressee_id": "player"
+    },
+    "player_request": "请说清自己目前知道什么。",
+    "cast": [
+      {
+        "id": "npc",
+        "name": "林岚"
+      },
+      {
+        "id": "other",
+        "name": "许遥"
+      },
+      {
+        "id": "player",
+        "name": "访客"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "unknown-versus-unread-history",
+      "expected_accept": true,
+      "rationale": "表达当前知识未知，不断言过去读过或未读过。",
+      "speech": {
+        "text": "登记册上的内容，我现在还说不准。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "missing-read-log-is-not-unread-history",
+      "expected_accept": false,
+      "rationale": "未提供过去操作的否定经历；缺少记录不能证明未发生。",
+      "speech": {
+        "text": "我进入门厅后没碰过登记册，也没从头翻过。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "authored-unread-history-is-supported",
+      "expected_accept": true,
+      "rationale": "作者明确规定了否定经历，不能因为一般禁止无据历史而误拒。",
+      "speech": {
+        "text": "我进入门厅后没碰过登记册，也没从头翻过。",
+        "claims": []
+      },
+      "info": {
+        "profile": {
+          "name": "林岚",
+          "core": "档案馆馆长。角色经历明确设定：进入门厅后没有碰过或翻看登记册。",
+          "world": "虚构档案馆"
+        },
+        "scene_facts": {},
+        "observations": [],
+        "known_objects": [],
+        "active_goals": {}
+      }
+    },
+    {
+      "case_id": "heard-self-report-is-not-witness",
+      "expected_accept": false,
+      "rationale": "提供的只有许遥的自述观察，无目击或确认事实；不能升为亲眼见到。",
+      "speech": {
+        "text": "许遥，你说把登记册放在门厅桌上，这一步我亲眼看见了。",
+        "claims": []
+      },
+      "info": {
+        "profile": {
+          "name": "林岚",
+          "core": "档案馆馆长。",
+          "world": "虚构档案馆"
+        },
+        "scene_facts": {},
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "我把登记册放在门厅桌上了。",
+            "actor_id": "other",
+            "speaker": "许遥"
+          }
+        ],
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "heard": "我把登记册放在门厅桌上了。"
+      }
+    },
+    {
+      "case_id": "heard-self-report-remains-report",
+      "expected_accept": true,
+      "rationale": "明确保留言论来源，没有确认其内容。",
+      "speech": {
+        "text": "许遥说他把登记册放在门厅桌上了；我听见的是他的说法。",
+        "claims": []
+      },
+      "info": {
+        "profile": {
+          "name": "林岚",
+          "core": "档案馆馆长。",
+          "world": "虚构档案馆"
+        },
+        "scene_facts": {},
+        "observations": [
+          {
+            "id": "heard",
+            "kind": "speech",
+            "text": "我把登记册放在门厅桌上了。",
+            "actor_id": "other",
+            "speaker": "许遥"
+          }
+        ],
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "heard": "我把登记册放在门厅桌上了。"
+      }
+    },
+    {
+      "case_id": "authored-witness-is-supported",
+      "expected_accept": true,
+      "rationale": "witnessed事实明确授权亲眼所见，不要求额外核查。",
+      "speech": {
+        "text": "许遥把登记册放在门厅桌上，这一步我亲眼看见了。",
+        "claims": []
+      },
+      "info": {
+        "profile": {
+          "name": "林岚",
+          "core": "档案馆馆长。",
+          "world": "虚构档案馆"
+        },
+        "scene_facts": {
+          "placement": {
+            "event_id": "placement",
+            "value": "林岚亲眼看见许遥把登记册放在门厅桌上。",
+            "basis": "witnessed"
+          }
+        },
+        "observations": [],
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "placement": "林岚亲眼看见许遥把登记册放在门厅桌上。"
+      }
+    }
+  ]
+}

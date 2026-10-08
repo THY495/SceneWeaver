@@ -1,0 +1,679 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-ferry-state-history-v1",
+  "version": 1,
+  "scope": "Frozen development controls derived from r141 final speech; reduced authorized state, not exact live replay or independent holdout",
+  "defaults": {
+    "actor_id": "npc",
+    "sources": {},
+    "player_request": "说清楚你知道什么、不知道什么。",
+    "cast": [
+      {
+        "id": "npc",
+        "name": "阿岚"
+      },
+      {
+        "id": "other",
+        "name": "沈舟"
+      },
+      {
+        "id": "player",
+        "name": "旅人"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "wind-short",
+      "pair_id": "wind",
+      "factor": "candidate-expression",
+      "variant": "short",
+      "expected_accept": false,
+      "rationale": "远处雷声不证明当前风势；谨慎态度和当前未知可以表达。",
+      "info": {
+        "profile": {
+          "name": "阿岚",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "风还没真压下来。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "npc",
+          "name": "阿岚"
+        },
+        {
+          "id": "other-2",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。"
+      }
+    },
+    {
+      "case_id": "wind-full",
+      "pair_id": "wind",
+      "factor": "candidate-expression",
+      "variant": "full",
+      "expected_accept": false,
+      "rationale": "远处雷声不证明当前风势；谨慎态度和当前未知可以表达。",
+      "info": {
+        "profile": {
+          "name": "阿岚",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "沈舟说的公告我认得，就是遇强风停航、复航时间等值班员收到通知再公布——我看的也是这一条。雷声才过去没多久，风还没真压下来。复航的时间我也没接到，不替谁定。船和缆绳这边我先看着，有通知了我再招呼你们上船。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "npc",
+          "name": "阿岚"
+        },
+        {
+          "id": "other-2",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。"
+      }
+    },
+    {
+      "case_id": "wind-unknown",
+      "pair_id": "wind",
+      "factor": "candidate-expression",
+      "variant": "unknown",
+      "expected_accept": true,
+      "rationale": "远处雷声不证明当前风势；谨慎态度和当前未知可以表达。",
+      "info": {
+        "profile": {
+          "name": "阿岚",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "刚才远处传来雷声。我不确定此刻风势如何，开船这件事我会慎重。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "npc",
+          "name": "阿岚"
+        },
+        {
+          "id": "other-2",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。"
+      }
+    },
+    {
+      "case_id": "receipt-short",
+      "pair_id": "receipt",
+      "factor": "candidate-expression",
+      "variant": "short",
+      "expected_accept": false,
+      "rationale": "收到通知后公布不证明尚未收到；当前未知不是否定接收经历。",
+      "info": {
+        "profile": {
+          "name": "阿岚",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "复航的时间我也没接到，不替谁定。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "npc",
+          "name": "阿岚"
+        },
+        {
+          "id": "other-2",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。"
+      }
+    },
+    {
+      "case_id": "receipt-unknown",
+      "pair_id": "receipt",
+      "factor": "candidate-expression",
+      "variant": "unknown",
+      "expected_accept": true,
+      "rationale": "收到通知后公布不证明尚未收到；当前未知不是否定接收经历。",
+      "info": {
+        "profile": {
+          "name": "阿岚",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "复航时间我不知道，不替谁定。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "npc",
+          "name": "阿岚"
+        },
+        {
+          "id": "other-2",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。"
+      }
+    },
+    {
+      "case_id": "reading-short",
+      "pair_id": "reading",
+      "factor": "candidate-expression",
+      "variant": "short",
+      "expected_accept": false,
+      "rationale": "知道物件存在或持有状态不证明看过却未看清文字的经历。",
+      "info": {
+        "profile": {
+          "name": "林澈",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          },
+          {
+            "id": "4444bd2d-5beb-4f51-9057-6f8df990e3ae",
+            "kind": "speech",
+            "actor_id": "other-1",
+            "speaker": "阿岚",
+            "text": "沈舟说的公告我认得，就是遇强风停航、复航时间等值班员收到通知再公布——我看的也是这一条。雷声才过去没多久，风还没真压下来。复航的时间我也没接到，不替谁定。船和缆绳这边我先看着，有通知了我再招呼你们上船。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "便条我看到了，但没看清楚逐字写的是什么。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "other-1",
+          "name": "阿岚"
+        },
+        {
+          "id": "npc",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+        "4444bd2d-5beb-4f51-9057-6f8df990e3ae": "沈舟说的公告我认得，就是遇强风停航、复航时间等值班员收到通知再公布——我看的也是这一条。雷声才过去没多久，风还没真压下来。复航的时间我也没接到，不替谁定。船和缆绳这边我先看着，有通知了我再招呼你们上船。"
+      }
+    },
+    {
+      "case_id": "reading-full",
+      "pair_id": "reading",
+      "factor": "candidate-expression",
+      "variant": "full",
+      "expected_accept": false,
+      "rationale": "知道物件存在或持有状态不证明看过却未看清文字的经历。",
+      "info": {
+        "profile": {
+          "name": "林澈",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          },
+          {
+            "id": "4444bd2d-5beb-4f51-9057-6f8df990e3ae",
+            "kind": "speech",
+            "actor_id": "other-1",
+            "speaker": "阿岚",
+            "text": "沈舟说的公告我认得，就是遇强风停航、复航时间等值班员收到通知再公布——我看的也是这一条。雷声才过去没多久，风还没真压下来。复航的时间我也没接到，不替谁定。船和缆绳这边我先看着，有通知了我再招呼你们上船。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "阿岚，我这边也只认公告栏那条：遇强风停航，复航时间等值班员收到通知再公布。便条和人手上的东西我看到了，但没看清楚逐字写的是什么，也就不好拿它当准数。\n\n要是有谁问起，我就把这两样分开讲：公告写什么、我亲眼看到什么、哪些还没核实。复航时间我不会替谁报，你那边收到通知再招呼——这一点我跟你一样。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "other-1",
+          "name": "阿岚"
+        },
+        {
+          "id": "npc",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+        "4444bd2d-5beb-4f51-9057-6f8df990e3ae": "沈舟说的公告我认得，就是遇强风停航、复航时间等值班员收到通知再公布——我看的也是这一条。雷声才过去没多久，风还没真压下来。复航的时间我也没接到，不替谁定。船和缆绳这边我先看着，有通知了我再招呼你们上船。"
+      }
+    },
+    {
+      "case_id": "reading-unknown",
+      "pair_id": "reading",
+      "factor": "candidate-expression",
+      "variant": "unknown",
+      "expected_accept": true,
+      "rationale": "知道物件存在或持有状态不证明看过却未看清文字的经历。",
+      "info": {
+        "profile": {
+          "name": "林澈",
+          "core": "雾港渡口候船亭中的人物。"
+        },
+        "scene_facts": {
+          "opening": {
+            "event_id": "opening",
+            "value": "候船亭亮着灯，阿岚与沈舟都在场。一阵雷声从远处传来。",
+            "basis": "confirmed"
+          },
+          "notice": {
+            "event_id": "notice",
+            "value": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          }
+        },
+        "known_objects": [
+          {
+            "id": "paper",
+            "name": "渡口便条",
+            "holder_id": "player",
+            "location": "候船亭"
+          }
+        ],
+        "observations": [
+          {
+            "id": "ff8bf27e-eae6-419e-bfe4-0e5933774d59",
+            "kind": "speech",
+            "actor_id": "other-0",
+            "speaker": "沈舟",
+            "text": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          },
+          {
+            "id": "4444bd2d-5beb-4f51-9057-6f8df990e3ae",
+            "kind": "speech",
+            "actor_id": "other-1",
+            "speaker": "阿岚",
+            "text": "沈舟说的公告我认得，就是遇强风停航、复航时间等值班员收到通知再公布——我看的也是这一条。雷声才过去没多久，风还没真压下来。复航的时间我也没接到，不替谁定。船和缆绳这边我先看着，有通知了我再招呼你们上船。",
+            "addressees": [
+              "npc"
+            ],
+            "channel": "public"
+          }
+        ]
+      },
+      "intent": {
+        "act": "speak",
+        "purpose": "说明自己所知和当前态度，未知明确说明。",
+        "addressee_id": "player"
+      },
+      "speech": {
+        "text": "便条我看到了，但我现在不知道上面逐字写的是什么。",
+        "claims": []
+      },
+      "cast": [
+        {
+          "id": "other-0",
+          "name": "沈舟"
+        },
+        {
+          "id": "other-1",
+          "name": "阿岚"
+        },
+        {
+          "id": "npc",
+          "name": "林澈"
+        },
+        {
+          "id": "player",
+          "name": "旅人"
+        }
+      ],
+      "sources": {
+        "ff8bf27e-eae6-419e-bfe4-0e5933774d59": "阿岚，我先把公告和便条分开说。\n\n公告栏上我读到的只有一条：遇强风停航，复航时间由值班员收到通知后公布。这是公告的内容，不是旅人手里的便条逐字写的东西。\n\n复航时间我不知道，眼下也不掌握相关通知，没法核实。不会替值班员定时间。",
+        "4444bd2d-5beb-4f51-9057-6f8df990e3ae": "沈舟说的公告我认得，就是遇强风停航、复航时间等值班员收到通知再公布——我看的也是这一条。雷声才过去没多久，风还没真压下来。复航的时间我也没接到，不替谁定。船和缆绳这边我先看着，有通知了我再招呼你们上船。"
+      }
+    }
+  ]
+}

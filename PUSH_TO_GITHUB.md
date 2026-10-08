@@ -1,44 +1,85 @@
-# 将角色扮演 Alpha 源码发布到 GitHub
+# 提交 v0.1.0-alpha.2 到 GitHub
 
-目标仓库：<https://github.com/THY495/SceneWeaver>。请确认它仍是空仓库；若 GitHub 已自动创建 README、LICENSE 或其他初始提交，先停下核对历史，不要使用强制推送。
+目标仓库：https://github.com/THY495/SceneWeaver 。下面将源码更新提交到现有 main 历史；不会 git init、强推或改动 alpha.1 标签。维护者已准备本机 Git checkout 时，优先使用包旁的提交说明和该 checkout。
 
-**只在本发布目录执行以下命令。** 原开发工作区含办公助手历史代码、未提交改动及本地数据，不适合作为首次公开提交。此目录为独立、无原项目 Git 历史的源码快照，包含 MIT 代码许可证和单独的示例内容条款。先阅读 [`README.md`](README.md)、[`LICENSE`](LICENSE)、[`CONTENT_LICENSE.md`](CONTENT_LICENSE.md) 与 [`docs/acceptance.md`](docs/acceptance.md)。
+## 本机已准备好的提交目录
 
-在本目录打开 PowerShell：
+本次已准备 `D:\WorkSpace\Chatbot_thinking\.runtime\alpha-release\SceneWeaver-alpha2-push`，源码已暂存但尚未提交或推送。使用以下步骤即可，不要再向此目录 clone，也不要从开发项目根目录执行 git add。
 
 ```powershell
-python scripts/verify_release.py
-if ($LASTEXITCODE -ne 0) { throw "发布包校验失败，请停止" }
-git init -b main
-if ($LASTEXITCODE -ne 0) { throw "Git 初始化失败，请停止" }
-git add .
-if ($LASTEXITCODE -ne 0) { throw "暂存失败，请停止" }
-git status --short
+Set-Location -LiteralPath 'D:\WorkSpace\Chatbot_thinking\.runtime\alpha-release\SceneWeaver-alpha2-push'
+git config --global --add safe.directory 'D:/WorkSpace/Chatbot_thinking/.runtime/alpha-release/SceneWeaver-alpha2-push'
 git diff --cached --check
-if ($LASTEXITCODE -ne 0) { throw "暂存文件存在空白错误，请停止" }
+if ($LASTEXITCODE -ne 0) { throw '差异检查失败' }
 python scripts/verify_release.py --staged
-if ($LASTEXITCODE -ne 0) { throw "暂存清单校验失败，请停止" }
+if ($LASTEXITCODE -ne 0) { throw '暂存文件校验失败' }
+git diff --cached --stat
+git config user.name 'Hanyu'
+git config user.email 'hanyut046@gmail.com'
+git commit -m 'Release Sceneweaver v0.1.0-alpha.2 source preview'
+if ($LASTEXITCODE -ne 0) { throw '提交失败' }
+git push origin main
+if ($LASTEXITCODE -ne 0) { throw '推送失败；不要强推' }
+```
 
-git config user.name
-git config user.email
-# 若上述任一项为空，先设置为你的 GitHub 显示名和已验证邮箱（或 GitHub noreply 邮箱）：
-# git config user.name "THY495"
-# git config user.email "你的 GitHub 邮箱"
+safe.directory 只为这个目录处理沙箱账户与当前用户所有权不同的情况，不添加全盘例外。若 main 发生远程变更，普通 push 会拒绝，请先处理变更，不用 --force。下面的从快照开始步骤仅用于另建提交目录，两套步骤不要重复执行。
 
-git commit -m "Release Sceneweaver v0.1.0-alpha.1 source preview"
-if ($LASTEXITCODE -ne 0) { throw "提交失败，请停止" }
-git tag v0.1.0-alpha.1
-if ($LASTEXITCODE -ne 0) { throw "标签创建失败，请停止" }
-git remote add origin https://github.com/THY495/SceneWeaver.git
-if ($LASTEXITCODE -ne 0) { throw "远端配置失败，请停止" }
-git remote -v
-git push -u origin main
-if ($LASTEXITCODE -ne 0) { throw "main 推送失败，请停止" }
-git push origin v0.1.0-alpha.1
-if ($LASTEXITCODE -ne 0) { throw "标签推送失败，请检查网络或权限" }
+## 从此发布快照开始
+
+在 PowerShell 中运行下列命令。snapshot 是本次验证的发布快照；checkout 必须是尚不存在的新目录，且不能放在 snapshot 内。每条 Git/Python 命令都应成功后再继续。
+
+```powershell
+$releaseSnapshot = 'D:\WorkSpace\Chatbot_thinking\.runtime\alpha-release\sceneweaver-v0.1.0-alpha.2-roleplay-release'
+$releaseCheckout = 'D:\WorkSpace\Chatbot_thinking\.runtime\alpha-release\SceneWeaver-alpha2-fresh'
+Set-Location -LiteralPath $releaseSnapshot
+python scripts/verify_release.py
+if ($LASTEXITCODE -ne 0) { throw '发布快照校验失败' }
+
+if (Test-Path -LiteralPath $releaseCheckout) { throw '目标目录已存在，请使用包旁的已准备 checkout 指令，或选一个新目录' }
+git clone --branch main https://github.com/THY495/SceneWeaver.git $releaseCheckout
+if ($LASTEXITCODE -ne 0) { throw '克隆失败' }
+python "$releaseSnapshot\scripts\update_release_checkout.py" --target $releaseCheckout --branch main
+if ($LASTEXITCODE -ne 0) { throw '复制发布快照失败' }
+Set-Location -LiteralPath $releaseCheckout
+
+git add -A
+if ($LASTEXITCODE -ne 0) { throw '暂存失败' }
+git diff --cached --check
+if ($LASTEXITCODE -ne 0) { throw '差异检查失败' }
+python scripts/verify_release.py --staged
+if ($LASTEXITCODE -ne 0) { throw '暂存文件不匹配清单' }
+git diff --cached --stat
 git status --short
 ```
 
-`git status --short` 的暂存文件应只包括源码、示例、测试和文档；不能出现 `.env`、Key、存档、`.runtime`、`node_modules` 或 Windows 二进制。`verify_release.py --staged` 会按发布清单检查全部暂存文件与内容，发现增删或改动时会失败。不要用 `git add -f` 加入被忽略的凭据，也不要对远端使用 `--force`。
+检查列表应仅有源码、测试、示例、文档和构建配置，不应包含 .env、密钥、存档、.runtime 或 node_modules。然后提交并推送：
 
-首次 `git push` 可能要求你通过浏览器或 Git Credential Manager 登录 GitHub；若在 HTTPS 密码栏输入凭据，应使用 GitHub 个人访问令牌，不是账户密码。不要把令牌写进命令、仓库或聊天。推送后打开仓库页面确认 README 和 MIT 许可证已显示，并在 Tags 中确认 `v0.1.0-alpha.1`；如创建 GitHub Release，标记为 **pre-release**，不要附上本机未审查的 Windows 二进制。
+```powershell
+git config user.name 'Hanyu'
+git config user.email 'hanyut046@gmail.com'
+git commit -m 'Release Sceneweaver v0.1.0-alpha.2 source preview'
+if ($LASTEXITCODE -ne 0) { throw '提交失败' }
+git push origin main
+if ($LASTEXITCODE -ne 0) { throw '推送失败，请处理登录或远程变化；不要强推' }
+```
+
+若 Git 报 detected dubious ownership，仅为实际 checkout 加例外，再重试原失败命令：
+
+```powershell
+git config --global --add safe.directory $releaseCheckout
+```
+
+不要使用 safe.directory=*。若推送需要 GitHub 登录，使用正常浏览器登录或 Git Credential Manager，勿把令牌写入命令或仓库。
+
+## 可选：给此提交建立版本标签
+
+main 推送成功且确认该提交就是要发布的版本后：
+
+```powershell
+git tag -a v0.1.0-alpha.2 -m 'Sceneweaver v0.1.0-alpha.2 source preview'
+if ($LASTEXITCODE -ne 0) { throw '标签创建失败；如已存在，不要移动或覆盖' }
+git push origin v0.1.0-alpha.2
+if ($LASTEXITCODE -ne 0) { throw '标签推送失败' }
+```
+
+GitHub Releases 页面可选择此标签并标为 pre-release。上传源码 ZIP 是可选步骤；它不包含 Windows 可执行发行包。此文档只是操作说明，准备过程中未替你 push 或发布。

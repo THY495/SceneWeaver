@@ -1,0 +1,122 @@
+{
+  "format": "sceneweaver-npc-v1-acceptance",
+  "version": 1,
+  "frozen_after_commit": "61ea677",
+  "scope": "单机模型 API、1 位玩家、2—4 位 NPC、文字输入、流式文字和可选语音输出的实验原型",
+  "grading_isolation": "所有 hard_assertions、human_review 和 release_gates 仅用于运行后判定，不得进入 NPC、审核器或记忆整理消息。",
+  "release_gates": {
+    "hard": {
+      "unauthorized_knowledge_leaks": 0,
+      "invalid_world_commits": 0,
+      "player_agency_violations": 0,
+      "idempotency_or_recovery_failures": 0,
+      "full_non_live_regression_required": true,
+      "minimum_external_usability_sessions": 1
+    },
+    "quality": {
+      "minimum_reviewable_cases_per_scenario": 5,
+      "minimum_pass_rate": 0.8,
+      "uncertain_counts_as_pass": false,
+      "criteria": [
+        "consistency",
+        "information_boundary",
+        "initiative",
+        "naturalness"
+      ]
+    },
+    "latency": {
+      "text_decision_p50_ms": 12000,
+      "text_decision_p95_ms": 30000,
+      "generated_ack_audio_soft_target_p50_ms": 3000,
+      "generated_ack_audio_soft_target_p95_ms": 6000,
+      "main_audio_soft_target_p50_ms": 10000,
+      "main_audio_soft_target_p95_ms": 20000
+    },
+    "cost": {
+      "median_decision_usd": 0.02,
+      "maximum_acceptance_batch_usd": 1.25,
+      "persistent_daily_cap_usd": 2.0
+    }
+  },
+  "scenarios": [
+    {
+      "id": "knowledge-asymmetry",
+      "title": "匿名片段与缺席边界",
+      "runner": "scripts/evaluate_npc_steps.py",
+      "template_id": "partial-hearing",
+      "repetitions": 5,
+      "dialogue_turns": 1,
+      "covers": ["partial_hearing", "unknown_speaker", "absent_player", "private_memory"],
+      "hard_assertions": [
+        "没有角色补全未听到的钥匙信息",
+        "匿名声音不被强行归因给已知角色",
+        "缺席玩家不获得场内事件"
+      ],
+      "human_review": ["information_boundary", "consistency", "naturalness"]
+    },
+    {
+      "id": "offstage-initiative",
+      "title": "玩家不在场的 NPC 协商",
+      "runner": "scripts/evaluate_npc_steps.py",
+      "template_id": "offstage-dialogue",
+      "repetitions": 5,
+      "dialogue_turns": 4,
+      "covers": ["offstage_dialogue", "initiative", "multi_goal_selection", "bounded_chain"],
+      "hard_assertions": [
+        "NPC 不替另一名角色表示同意",
+        "场外过程不向玩家交付不可见言论",
+        "没有新机会时允许等待且不会形成无限互动链"
+      ],
+      "human_review": ["initiative", "consistency", "naturalness", "information_boundary"]
+    },
+    {
+      "id": "reply-lifecycle",
+      "title": "指定回应与生命周期恢复",
+      "runner": "scripts/evaluate_npc_steps.py",
+      "template_id": "reply-lifecycle",
+      "repetitions": 5,
+      "dialogue_turns": 1,
+      "covers": ["assigned_reply", "defer", "refuse", "silence", "resume"],
+      "hard_assertions": [
+        "只有指定回应者能够改变请求状态",
+        "未完整听到回应的旁观者不会获得状态变化",
+        "终态请求不会被再次提交回应"
+      ],
+      "human_review": ["consistency", "information_boundary", "naturalness"]
+    },
+    {
+      "id": "memory-redaction-restart",
+      "title": "两次快照、纠正、撤回与重启",
+      "runner": "scripts/evaluate_role_memory_trajectory.py",
+      "case_file": "evals/cases/role-memory-trajectory-v1.json",
+      "repetitions": 5,
+      "covers": ["two_snapshots", "correction", "source_redaction", "restart", "long_term_goal"],
+      "hard_assertions": [
+        "旧隐私版本快照不参与撤回后的工作集",
+        "匿名听众不获得未听到的句尾",
+        "独立纠正和长期承诺在重启后仍可用"
+      ],
+      "human_review": ["consistency", "information_boundary"]
+    },
+    {
+      "id": "relationship-repair",
+      "title": "关系分歧、修复与跨快照回应",
+      "runner": "scripts/evaluate_relationship_reply_trajectory.py",
+      "template_id": "offstage-dialogue",
+      "repetitions": 5,
+      "covers": ["relationship_replacement", "assigned_reply", "snapshot_tail", "source_grounding"],
+      "hard_assertions": [
+        "旧关系记忆归档且新版本指向旧版本",
+        "回应使用第二快照与未压缩尾部而不编造记录",
+        "玩家不在场时不获得这段交流"
+      ],
+      "human_review": ["consistency", "information_boundary", "initiative", "naturalness"]
+    }
+  ],
+  "limitations": [
+    "五次重复只能形成原型发布门槛，不能支持生产级统计显著性结论。",
+    "等待可以是合格行为；只有与目标、请求和可见信息冲突时才判失败。",
+    "软语音目标用于优化排序，不覆盖知识边界和发布前校验。",
+    "真实非项目参与者可用性测试仍需单独完成。"
+  ]
+}

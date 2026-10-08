@@ -92,6 +92,7 @@ async def test_ui_authored_three_npc_package_runs_backstage_and_reaches_either_e
                     "reason": "程安说明准备情况",
                     "jobs": [
                         {
+                            "kind": "free",
                             "id": "say",
                             "actor": actor_ids["archivist"],
                             "objective": "说明档案已经准备交接",
@@ -504,7 +505,7 @@ async def test_game_directed_backstage_runs_one_grounded_step_then_enters_player
                     "after_plan": "yield_player",
                     "remaining_work": [],
                     "reason": "馆长发言",
-                    "jobs": [{"id": "say", "actor": curator, "objective": "说明准备交接"}],
+                    "jobs": [{"kind": "free", "id": "say", "actor": curator, "objective": "说明准备交接"}],
                 },
                 "director_assignment": {"checks": [], "accepted": True, "issues": []},
                 "role_intent": {

@@ -1,0 +1,174 @@
+{
+  "format": "sceneweaver-development-scenarios",
+  "version": 1,
+  "purpose": "development only; not a held-out set",
+  "source_commit_before_batch": "7a6b326",
+  "cases": [
+    {
+      "template_id": "partial-hearing",
+      "recipe": {
+        "schema_version": 1,
+        "template_id": "partial-hearing",
+        "template_version": 1,
+        "title": "雨夜档案馆：部分听闻",
+        "description": "核对匿名片段、角色各自的记忆与玩家不在场时的知情边界。",
+        "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+        "people": [
+          {
+            "alias": "curator",
+            "profile": {
+              "name": "林岚",
+              "core": "你是馆长，曾在一次交接误会中失去同事的信任。你习惯先确认对方知道多少再解释。你与修复师周澈合作五年，尊重他的手艺，但不愿未经核实就转交机密。",
+              "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+              "relationships": [
+                {
+                  "target": "周澈",
+                  "relation": "长期合作但对保密方式有分歧",
+                  "status": "current"
+                }
+              ],
+              "document_ids": []
+            },
+            "location": "阅览室",
+            "goals": [
+              "弄清周澈是否听到了刚才的话，再决定如何解释。"
+            ],
+            "unnoticed": [
+              "restorer"
+            ]
+          },
+          {
+            "alias": "restorer",
+            "profile": {
+              "name": "周澈",
+              "core": "你是修复师，曾因交接记录缺失替人承担责任。你重视可核对的来源，不愿仅凭片段指控别人。你与林岚合作五年，仍希望恢复互相信任。",
+              "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+              "relationships": [
+                {
+                  "target": "林岚",
+                  "relation": "合作五年的馆长",
+                  "status": "current"
+                }
+              ],
+              "document_ids": []
+            },
+            "location": "阅览室",
+            "goals": [
+              "询问刚才听闻片段的含义，不把猜测当成确认信息。"
+            ],
+            "unnoticed": []
+          },
+          {
+            "alias": "reporter",
+            "profile": {
+              "name": "许遥",
+              "core": "你是来访记者，正在调查旧档案的交接经过。你尚未听到阅览室刚发生的谈话，愿意先向在场者核实。",
+              "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+              "relationships": [],
+              "document_ids": []
+            },
+            "location": "门厅",
+            "goals": [
+              "寻找愿意说明交接经过的人。"
+            ],
+            "unnoticed": []
+          }
+        ],
+        "player": {
+          "alias": "player",
+          "name": "访客",
+          "location": "门厅"
+        },
+        "speech": [
+          {
+            "speaker": "curator",
+            "text": "盒子在楼上，钥匙在暗格。",
+            "heard": [
+              {
+                "actor": "restorer",
+                "text": "盒子在楼上",
+                "speaker_known": false
+              }
+            ]
+          }
+        ]
+      },
+      "recipe_sha256": "d89c35895c825f236bf2b0642be67cb569f26f3275a003858b8faa76aa85a884",
+      "human_review_criteria_not_sent_to_models": [
+        "只转述实际听到的片段，不补全钥匙信息",
+        "不把匿名声音归因给已知NPC",
+        "不把系统提供的观察记录说成亲眼看见的文档",
+        "玩家离场时无观察交付"
+      ]
+    },
+    {
+      "template_id": "offstage-dialogue",
+      "recipe": {
+        "schema_version": 1,
+        "template_id": "offstage-dialogue",
+        "template_version": 1,
+        "title": "闭馆前：场外协商",
+        "description": "玩家留在门厅，档案室两名NPC带着不同目标自行决定是否交流。",
+        "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+        "people": [
+          {
+            "alias": "archivist",
+            "profile": {
+              "name": "程安",
+              "core": "你是档案管理员，负责今晚的交接。此前一次口头约定被误解后，你开始要求明确记录。你愿意听取修复师的理由，但不会代替别人表示同意。",
+              "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+              "relationships": [
+                {
+                  "target": "顾宁",
+                  "relation": "经常合作的修复师",
+                  "status": "current"
+                }
+              ],
+              "document_ids": []
+            },
+            "location": "档案室",
+            "goals": [
+              "向顾宁确认今晚交接是否需要延后，并听取理由。"
+            ],
+            "unnoticed": []
+          },
+          {
+            "alias": "restorer",
+            "profile": {
+              "name": "顾宁",
+              "core": "你是修复师，担心匆忙交接会遗漏检查。你与程安都看重档案安全，只是对时间安排有分歧。你会主动提出可讨论的检查安排。",
+              "world": "当代雾港私人档案馆。所有人物均为成年人，人物只能依据自己的经历与实际听闻作判断。",
+              "relationships": [
+                {
+                  "target": "程安",
+                  "relation": "谨慎的合作同事",
+                  "status": "current"
+                }
+              ],
+              "document_ids": []
+            },
+            "location": "档案室",
+            "goals": [
+              "向程安提出先核对交接记录再决定时间。"
+            ],
+            "unnoticed": []
+          }
+        ],
+        "player": {
+          "alias": "player",
+          "name": "访客",
+          "location": "门厅"
+        },
+        "speech": []
+      },
+      "recipe_sha256": "dc96076b8b22a36be07a93d68296de67d722f4d586fc612cc1bac4be9c760de3",
+      "human_review_criteria_not_sent_to_models": [
+        "各自目标驱动提问与回应",
+        "不替对方同意或把建议当作已完成",
+        "只引用属于自己的活跃待回应事项",
+        "玩家离场时无观察交付",
+        "无新机会时允许等待"
+      ]
+    }
+  ]
+}

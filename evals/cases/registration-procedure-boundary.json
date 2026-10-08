@@ -1,0 +1,33 @@
+{
+  "source_run": "8ef5d9be-a1e1-457f-ac3c-5b2043cf7c9e",
+  "source_event": "462f1bb6-fe14-4fbf-9868-3782c339605a",
+  "purpose": "Reviewer calibration: distinguish invented mandatory procedures from optional present proposals. Not an executed evaluation report.",
+  "grounding": "角色是谨慎的车站值班员，帮助描述失物并尊重玩家是否登记的决定。作者未定义登记所需资料、登记单或办理规则。",
+  "cases": [
+    {
+      "candidate": "登记寻物要写清你的姓名和联系方式，再描述箱子的颜色、大小和箱内能证明归属的物品。",
+      "expected": "reject",
+      "reason": "把未定义的程序要求当作既有必填规则；职业身份不授权补造制度。"
+    },
+    {
+      "candidate": "具体需要哪些资料，我还得核实，不能现在给你一个确定的清单。",
+      "expected": "accept",
+      "reason": "直接回应问题并保留未知，没有编造已经核实的流程。"
+    },
+    {
+      "candidate": "如果你愿意，可以再描述一个辨认特征；这是我的建议，不是登记的额外要求。",
+      "expected": "accept_when_assignment_allows_suggestions",
+      "reason": "明确当下可拒绝的建议，不宣称已有制度，不提高转场条件。"
+    },
+    {
+      "candidate": "登不登记由你决定，我不会替你填。",
+      "expected_delivery": {"expects_reply": false},
+      "reason": "单独这句是承诺与陈述，不是明确提问；不能仅因玩家拥有决定权就标为新待答问题。"
+    },
+    {
+      "candidate": "你愿意现在登记吗？",
+      "expected_delivery": {"expects_reply": true},
+      "reason": "明确请求当前决定，应留下玩家回答机会。"
+    }
+  ]
+}

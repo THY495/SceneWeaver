@@ -1,0 +1,148 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-recipient-delivery-v1",
+  "version": 1,
+  "scope": "Synthetic paired delivery controls; only current addressee and reply requirement vary",
+  "defaults": {
+    "info": {
+      "profile": {
+        "name": "沈知",
+        "core": "你是成年档案管理员，做事谨慎，不把传闻冒充结论。",
+        "world": "虚构档案室"
+      },
+      "observations": [
+        {
+          "id": "heard_box",
+          "kind": "speech",
+          "text": "盒子在楼上，但我还没确认。",
+          "actor_id": null,
+          "speaker": "未辨认的声音"
+        },
+        {
+          "id": "witnessed_seal",
+          "kind": "host",
+          "text": "沈知亲眼看见黎安把封条放在桌面上。",
+          "detail": {
+            "basis": "witnessed"
+          }
+        },
+        {
+          "id": "comparison_agreement",
+          "kind": "host",
+          "text": "沈知与黎安只同意比较纸质与电子两套登记方案。",
+          "detail": {
+            "basis": "confirmed"
+          }
+        }
+      ],
+      "scene_facts": {
+        "key_exists": {
+          "event_id": "key_exists",
+          "value": "档案室确有一把黄铜钥匙。",
+          "basis": "confirmed"
+        }
+      },
+      "known_objects": [
+        {
+          "name": "黄铜钥匙",
+          "known": "确认存在，位置和持有者未知"
+        }
+      ],
+      "active_goals": {
+        "goal": "沈知希望核对交接记录，并建议在双方决定后记录最终方案。"
+      }
+    },
+    "sources": {
+      "heard_box": "盒子在楼上，但我还没确认。",
+      "witnessed_seal": "沈知亲眼看见黎安把封条放在桌面上。",
+      "comparison_agreement": "沈知与黎安只同意比较纸质与电子两套登记方案。",
+      "key_exists": "档案室确有一把黄铜钥匙。",
+      "goal": "沈知希望核对交接记录，并建议在双方决定后记录最终方案。"
+    },
+    "intent": {
+      "act": "speak",
+      "deception": false,
+      "addressee_id": "peer"
+    },
+    "cast": [
+      {
+        "id": "npc",
+        "name": "沈知"
+      },
+      {
+        "id": "peer",
+        "name": "黎安"
+      },
+      {
+        "id": "player",
+        "name": "玩家"
+      },
+      {
+        "id": "observer",
+        "name": "林弦"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "existing-reply-then-peer-question",
+      "pair_id": "response-vs-request",
+      "factor": "recipient_current_act",
+      "variant": "prior_reply",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_addressee_id": "peer",
+      "speech": {
+        "text": "玩家，嗯。黎安，你现在愿意先停一停吗？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "two-explicit-requests",
+      "pair_id": "response-vs-request",
+      "factor": "recipient_current_act",
+      "variant": "two_requests",
+      "expected_accept": false,
+      "expected_reason_codes": [
+        "mixed_recipient"
+      ],
+      "speech": {
+        "text": "黎安，你怎么看？玩家，你又怎么看？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "peer-reply-then-player-question",
+      "pair_id": "player-decision",
+      "factor": "recipient_current_act",
+      "variant": "prior_reply",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_addressee_id": "player",
+      "speech": {
+        "text": "黎安，我看见你把封条放到桌上了。玩家，你怎么看？",
+        "claims": [
+          {
+            "text": "我看见你把封条放到桌上了",
+            "source_id": "witnessed_seal",
+            "quote": "沈知亲眼看见黎安把封条放在桌面上。",
+            "mode": "fact"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "peer-suggestion-then-player-question",
+      "pair_id": "player-decision",
+      "factor": "recipient_current_act",
+      "variant": "suggestion_before_request",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_addressee_id": "player",
+      "speech": {
+        "text": "黎安，我建议先停一停；玩家，你怎么看？",
+        "claims": []
+      }
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import asyncio
 
 import pytest
 
+from chatbot.npc.review_audio import reviewed_audio
 from chatbot.performance_candidate import CandidateIdentity, prepare_candidate
 
 
@@ -127,3 +128,57 @@ async def test_caller_cancellation_cleans_up_synthesis():
     with pytest.raises(asyncio.CancelledError):
         await task
     assert cancelled.is_set()
+
+
+@pytest.mark.asyncio
+async def test_review_first_retry_never_sends_rejected_text_to_synthesis():
+    sent = []
+
+    async def reject():
+        return False
+
+    async def synthesize():
+        sent.append("sent")
+        return b"pcm"
+
+    result = await prepare_candidate(
+        identity(), reject, synthesize, lambda: True, synthesize_after_review=True
+    )
+    assert result.status == "rejected" and result.audio is None
+    assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_review_first_approved_revision_keeps_its_private_audio():
+    order = []
+
+    async def approve():
+        order.append("approved")
+        return True
+
+    async def synthesize():
+        order.append("synthesized")
+        return b"revision-audio"
+
+    result = await prepare_candidate(
+        identity(), approve, synthesize, lambda: True, synthesize_after_review=True
+    )
+    assert order == ["approved", "synthesized"]
+    assert result.identity == identity()
+    assert result.status == "approved" and result.audio_status == "ready"
+    assert result.audio == b"revision-audio"
+
+
+@pytest.mark.asyncio
+async def test_review_first_voice_can_prepare_beyond_speculative_grace_period():
+    async def approve():
+        return {"accepted": True, "issues": [], "checks": []}
+
+    async def synthesize():
+        await asyncio.sleep(3.2)
+        return b"revision-audio"
+
+    review, audio, status = await reviewed_audio(
+        identity(), approve, synthesize, lambda: True, synthesize_after_review=True
+    )
+    assert review["accepted"] and status == "ready" and audio == b"revision-audio"

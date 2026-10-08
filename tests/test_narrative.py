@@ -59,6 +59,21 @@ def test_graph_validation():
     bad["narrative"]["nodes"][0]["entry_locations"] = [{"actor": "unknown", "location": "大厅"}]
     with pytest.raises(ValidationError, match="入场地点只能引用"):
         Recipe.model_validate(bad)
+    bad = graph()
+    bad["edges"][0]["requires_agreement"] = ["npc"]
+    with pytest.raises(ValidationError, match="只能用于 AI"):
+        Narrative.model_validate(bad)
+    bad["edges"][0].update(trigger="ai", condition="玩家和 NPC 均同意同行", requires_agreement=["npc", "npc"])
+    with pytest.raises(ValidationError, match="重复要求"):
+        Narrative.model_validate(bad)
+    bad["edges"][0]["requires_agreement"] = ["npc"]
+    recipe = template("partial-hearing")
+    recipe["narrative"] = bad
+    with pytest.raises(ValidationError, match="目标场景设置入场地点"):
+        Recipe.model_validate(recipe)
+    bad["nodes"][1]["entry_locations"] = [{"actor": "npc", "location": "码头"}]
+    with pytest.raises(ValidationError, match="已有的 NPC"):
+        Recipe.model_validate(recipe)
 
 
 def test_branch_commits_are_private_frozen_idempotent_and_ordered(db, config, fake):

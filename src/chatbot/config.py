@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     api_key: SecretStr = SecretStr("")
     api_key_file: str = ""
     dialogue_model: str = "deepseek-v4-flash"
+    # Opt-in execution experiment; world actions and knowledge lookup keep their existing path.
+    role_actor_generation: Literal["separate", "combined_context"] = "separate"
+    role_preparation_concurrency: int = Field(2, ge=1, le=2)
+    role_director_beat_reuse: bool = False
+    role_direct_response: bool = False
+    role_speech_representation: Literal["legacy", "segments"] = "legacy"
+    role_player_action_preflight: bool = False
+    role_response_review_binding: bool = False
+    role_assignment_authorization: Literal["semantic", "grounded_response"] = "grounded_response"
     expert_model: str = "deepseek-v4-pro"
     openrouter_api_key: SecretStr = SecretStr("")
     openrouter_api_key_file: str = ""

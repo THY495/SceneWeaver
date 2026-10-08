@@ -147,6 +147,10 @@ class SpeechDelivery(BaseModel):
         default=False,
         description="最终台词是否向接收者提出仍需其回答的问题或明确请求；承认未知、自己稍后核实、确认收尾不算。不得从旧intent继承。",
     )
+    requires_player_action: bool | None = Field(
+        default=None,
+        description="最终台词是否明确把继续表演置于接收者先行动、决定或授权这一前提之下；普通问句为false。仅据最终台词判断，不继承旧intent；null仅兼容旧审查结果。",
+    )
     response_kind: Literal["answer", "refuse", "defer", "silence"] = "answer"
 
 
@@ -154,7 +158,8 @@ class ActorReview(BaseModel):
     checks: list[ClaimAssessment] = Field(default_factory=list, max_length=12)
     accepted: bool
     issues: list[str] = Field(
-        default_factory=list, max_length=6,
+        default_factory=list,
+        max_length=6,
         description="仅列候选台词需要修正的缺陷；通过时为空，不填正面评价或未进入台词的计划风险",
     )
     delivery: SpeechDelivery
@@ -324,3 +329,10 @@ class ActorSpeech(BaseModel):
     spoken_parts: list[str] = Field(default_factory=list, max_length=12)
     claims: list[GroundedClaim] = Field(default_factory=list, max_length=8)
     performance: list[PerformanceSegment] = Field(default_factory=list, max_length=12)
+
+
+class ActorTurnDraft(BaseModel):
+    """Private candidate; neither intent nor speech authorizes a world commit."""
+
+    intent: ActorIntent
+    speech: ActorSpeech | None = None

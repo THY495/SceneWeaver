@@ -1,4 +1,4 @@
-import { performanceLanes, type PerformanceSpan } from './performanceTimeline'
+import { performanceEvidence, performanceLanes, type PerformanceSpan } from './performanceTimeline'
 
 export function PerformanceLanes({
   spans,
@@ -18,6 +18,9 @@ export function PerformanceLanes({
       <h4>导演与角色实例</h4>
       <p className="muted">
         {clockLabel}；审查与首句语音分行呈现，重叠即并行。仅展示已采集的工作，不把空白解释为模型推理。
+      </p>
+      <p className="muted">
+        正式提交、模型通过标记和回应评估分别展示；它们不能证明回答有用。稿次表示候选版本，重复阶段保留各自耗时。
       </p>
       {performanceLanes(spans).map(({ owner, entries }) => (
         <section key={owner}>
@@ -46,6 +49,7 @@ export function PerformanceLanes({
                   开始 +{(span.start_ms / 1000).toFixed(3)}秒 · 持续{' '}
                   {span.duration_ms === null ? '未知' : `${(span.duration_ms / 1000).toFixed(3)}秒`}
                 </small>
+                {performanceEvidence(span).length > 0 && <p>{performanceEvidence(span).join(' · ')}</p>}
               </li>
             ))}
           </ol>

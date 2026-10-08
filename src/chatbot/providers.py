@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import math
 import time
@@ -10,6 +11,7 @@ from sqlalchemy import func, select, text
 
 from .config import Settings
 from .observability.timing import annotate, measure, measured_slot, record_request, timed, transport_marks
+from .observability.usage import cache_tokens_reported
 from .runtime import Runtime, StaleTask
 from .storage import Database, Operation, Task, Usage, now, uid
 
@@ -33,6 +35,95 @@ class StructuredOutputError(ProviderError):
         self.errors = errors
 
 
+def director_error_path(path):
+    """Only real GeneratedPlanProposal locations can appear in feedback."""
+    if not isinstance(path, str) or len(path) > 160:
+        return 'unknown'
+    if not path:
+        return ''
+    parts = path.split('.')
+
+    def array_index(value, limit):
+        return value.isascii() and value.isdigit() and str(int(value)) == value and int(value) < limit
+
+    if parts[0] in {'beat_id', 'after_plan', 'reason'}:
+        return path if len(parts) == 1 else 'unknown'
+    if parts[0] == 'remaining_work':
+        return path if len(parts) == 1 or len(parts) == 2 and array_index(parts[1], 6) else 'unknown'
+    if parts[0] != 'jobs':
+        return 'unknown'
+    if len(parts) == 1:
+        return path
+    if not array_index(parts[1], 6):
+        return 'unknown'
+    if len(parts) == 2:
+        return path
+    # Pydantic's discriminated union loc adds the verified branch name. Keep
+    # the actual location for repair, never replay arbitrary model keys.
+    if parts[2] in {'free', 'source'}:
+        if len(parts) == 3:
+            return path
+        if parts[3] in {'free', 'source'}:
+            return 'unknown'
+        suffix = '.'.join(parts[3:])
+        normalized = director_error_path('.'.join(parts[:2]) + '.' + suffix)
+        if normalized == 'unknown':
+            return 'unknown'
+        field = parts[3]
+        if (parts[2] == 'free' and field == 'grounded_response'
+                or parts[2] == 'source' and field in {'objective', 'delivery_constraints'}):
+            # A forbidden but real field is a useful content-free location.
+            return path if len(parts) == 4 else 'unknown'
+        return path
+    field = parts[2]
+    if field in {'id', 'actor', 'objective', 'kind'}:
+        return path if len(parts) == 3 else 'unknown'
+    arrays = {'addressees': 1, 'depends_on': 5, 'delivery_constraints': 6}
+    if field in arrays:
+        return path if len(parts) == 3 or len(parts) == 4 and array_index(parts[3], arrays[field]) else 'unknown'
+    if field == 'grounded_response':
+        return path if len(parts) == 3 or len(parts) == 4 and parts[3] in {
+            'event_id', 'job_id', 'focus_quote', 'delivery', 'purpose'} else 'unknown'
+    return 'unknown'
+
+
+def director_schema_retry(messages, errors):
+    """Only schema locations/rules cross the retry boundary, never raw output."""
+    rules = {
+        'director_source_exclusive': '回应来源须且只能选择一个真实事件或前序任务。',
+        'director_future_quote': '前序任务未发表，不预写其具体引用片段。',
+        'director_inquiry_source': 'invite_player仅引用当前玩家已发表原话的event_id，不能引用未来任务。',
+        'director_task_conflict': '结构化回应与自由目标/约束互斥，按原创作要求选择一种；不擅自删掉创作要求。',
+        'director_source_dependency': '引用前序任务时，depends_on须包含该真实前序任务。',
+        'director_task_missing': '任务须有自由目标或结构化回应。',
+        'director_delivery_invalid': '表达约束须非空且在长度上限内。',
+        'director_control_leak': '后台交还控制权用规划控制字段表达，不写入演员任务。',
+        'director_dependency_order': '标识唯一，依赖只指向本批更早任务。',
+        'director_dependency_duplicate': '不重复同一依赖。',
+        'union_tag_not_found': '每个任务显式选择kind=free或source，不猜测缺失类型。',
+        'union_tag_invalid': 'kind只能为free或source，按原创作要求选择一种。',
+        'extra_forbidden': 'free只填写自由目标与约束，source只填写grounded_response；不能为凑结构删掉原创作要求。',
+    }
+    types = set(rules) | {'json_invalid', 'invalid_json', 'missing', 'extra_forbidden',
+        'too_long', 'too_short', 'string_too_long', 'string_too_short', 'string_type',
+        'list_type', 'dict_type', 'literal_error', 'model_type', 'model_attributes_type',
+        'none_required', 'value_error'}
+    safe = []
+    for error in errors[:10]:
+        path, kind = director_error_path(error.get('path', '')), error.get('type', '')
+        if not isinstance(kind, str) or kind not in types:
+            kind = 'unknown'
+        rule = rules.get(kind)
+        if kind == 'extra_forbidden' and path == 'unknown':
+            rule = None
+        safe.append({'path': path, 'type': kind, **({'rule': rule} if rule else {})})
+    return [*messages, {'role': 'user', 'content': json.dumps({
+        'schema_retry': '上一份演出规划未通过输出结构检查。按现有输出协议修正列出的结构问题后重新提交；'
+            '原有作者目标、角色感知、事实依据及世界状态权限继续适用。',
+        'format_errors': safe,
+    }, ensure_ascii=False)}]
+
+
 class BudgetExceeded(ProviderError):
     pass
 
@@ -43,6 +134,19 @@ class DailyBudgetExceeded(BudgetExceeded):
 
 class TransientProviderError(ProviderError):
     pass
+
+
+def operation_cache_id(task_id, operation):
+    """Keep legacy short keys; bound full task-scoped identity without truncation."""
+    key = f"{task_id}:{operation}"
+    if len(key) <= 200:
+        return key
+    return f"{task_id}:model-cache-v1:{hashlib.sha256(key.encode()).hexdigest()}"
+
+
+def operation_cache_name(record):
+    """Diagnostic stage identity for both legacy keys and bounded long keys."""
+    return record.payload.get("cache_operation") or record.id
 
 
 def http_failure(status):
@@ -92,14 +196,19 @@ def responses_review_usage(value):
     if not isinstance(value, dict):
         return None
     input_tokens, output_tokens = value.get("input_tokens"), value.get("output_tokens")
-    cached_tokens = (value.get("input_tokens_details") or {}).get("cached_tokens", 0)
-    if not all(isinstance(n, int) and n >= 0 for n in (input_tokens, output_tokens, cached_tokens)):
+    details = value.get("input_tokens_details") or {}
+    if not isinstance(details, dict):
         return None
-    return {
+    cached_tokens = details.get("cached_tokens", 0)
+    if not all(type(n) is int and n >= 0 for n in (input_tokens, output_tokens, cached_tokens)):
+        return None
+    result = {
         "prompt_tokens": input_tokens,
         "completion_tokens": output_tokens,
-        "prompt_cache_hit_tokens": min(cached_tokens, input_tokens),
     }
+    if "cached_tokens" in details:
+        result["prompt_cache_hit_tokens"] = min(cached_tokens, input_tokens)
+    return result
 
 
 def review_repairable(answer):
@@ -248,6 +357,13 @@ class Provider:
             row = s.get(Usage, usage_id)
             row.duration_ms = int(duration * 1000)
             row.status = status
+            cache_id = f"usage-cache:{usage_id}"
+            cache_record = s.get(Operation, cache_id)
+            cache_payload = {"cache_tokens_reported": cache_tokens_reported(usage)}
+            if cache_record:
+                cache_record.payload = cache_payload
+            else:
+                s.add(Operation(id=cache_id, task_id=row.task_id, payload=cache_payload))
             snapshot = s.get(Operation, f"usage:{usage_id}")
             if snapshot and metadata:
                 snapshot.payload = {**snapshot.payload, **metadata}
@@ -283,7 +399,9 @@ class Provider:
             row.reserved = 0
 
     @timed("model.call")
-    async def chat(self, task_id, role, messages, **kwargs):
+    async def chat(self, task_id, role, messages, *, max_attempts=2, **kwargs):
+        if type(max_attempts) is not int or max_attempts not in {1, 2}:
+            raise ValueError("模型请求最多允许一次或两次尝试。")
         annotate(role=role, task_id=task_id)
         emitted = False
         callback = kwargs.get("on_delta")
@@ -295,18 +413,23 @@ class Provider:
 
         if callback:
             kwargs["on_delta"] = tracked_delta
-        for attempt in range(2):
+        for attempt in range(max_attempts):
             try:
                 return await self._chat_once(task_id, role, messages, **kwargs)
             except StructuredOutputError as exc:
                 if role != "actor_review":
-                    if role == "acknowledgement" or attempt or emitted:
+                    if role == "acknowledgement" or attempt == max_attempts - 1 or emitted:
                         raise
                     self.runtime.check(task_id)
+                    if role == 'director':
+                        from .director_planning import GeneratedPlanProposal
+
+                        if kwargs.get('schema') is GeneratedPlanProposal:
+                            messages = director_schema_retry(messages, exc.errors)
                     with measure("model.retry_wait"):
                         await asyncio.sleep(0.5)
                     continue
-                if attempt or emitted:
+                if attempt == max_attempts - 1 or emitted:
                     raise
                 original = review_repairable(exc.answer)
                 if original is None or not review_repair_errors_supported(exc.errors):
@@ -361,7 +484,7 @@ class Provider:
                         "结构化结果不符合协议",
                     ]
                 )
-                if role == "acknowledgement" or attempt or emitted or not retryable:
+                if role == "acknowledgement" or attempt == max_attempts - 1 or emitted or not retryable:
                     raise
                 self.runtime.check(task_id)
                 with measure("model.retry_wait"):
@@ -385,7 +508,7 @@ class Provider:
         version = task.lease_version
         if operation:
             with self.db.session() as s:
-                saved = s.get(Operation, f"{task_id}:{operation}")
+                saved = s.get(Operation, operation_cache_id(task_id, operation))
                 if saved and "value" in saved.payload:
                     annotate(cache_hit=True)
                     return saved.payload["value"]
@@ -634,8 +757,12 @@ class Provider:
                 or t.lease_until <= now()
             ):
                 raise StaleTask("提交已过期")
-            if not s.get(Operation, f"{task_id}:{operation}"):
-                s.add(Operation(id=f"{task_id}:{operation}", task_id=task_id, payload={"value": value}))
+            cache_id = operation_cache_id(task_id, operation)
+            if not s.get(Operation, cache_id):
+                payload = {"value": value}
+                if cache_id != f"{task_id}:{operation}":
+                    payload["cache_operation"] = operation
+                s.add(Operation(id=cache_id, task_id=task_id, payload=payload))
 
     async def close(self):
         await self.http.aclose()

@@ -1,0 +1,85 @@
+{
+  "suite_id": "roleplay-stage-props-and-present-choice",
+  "version": 1,
+  "defaults": {
+    "cast": [{"id": "npc", "name": "柳音"}, {"id": "other", "name": "陆舟"}],
+    "intent": {"act": "speak", "purpose": "回应陆舟是否还认得他", "addressee_id": "other"},
+    "info": {
+      "profile": {
+        "name": "柳音",
+        "core": "经营旧书店，嘴快心软。她和陆舟一起长大；陆舟五年前离城时没有道别，此后两人没见过。"
+      },
+      "scene_facts": {
+        "setting": {"event_id": "scene:1", "value": "旧书店临近打烊；柳音和刚回城的陆舟在店内。", "basis": "confirmed"}
+      },
+      "observations": [{"id": "observed:1", "kind": "speech", "actor_id": "other", "speaker": "陆舟", "text": "陆舟站在门边问：你还认得我吗？"}],
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {
+      "profile:npc": "{\"name\": \"柳音\", \"core\": \"经营旧书店，嘴快心软。她和陆舟一起长大；陆舟五年前离城时没有道别，此后两人没见过。\"}",
+      "scene:1": "旧书店临近打烊；柳音和刚回城的陆舟在店内。",
+      "observed:1": "陆舟站在门边问：你还认得我吗？"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "book-in-hand-not-grounded",
+      "expected_accept": false,
+      "speech": {"text": "（放下手里的书，愣了一下）陆舟？你这张脸，我就是想忘也忘不掉。", "claims": []},
+      "rationale": "经营书店不证明此刻手里拿书；放下书不是无物件的小动作。"
+    },
+    {
+      "case_id": "price-tag-and-lock-not-grounded",
+      "expected_accept": false,
+      "speech": {"text": "（手里的价签捏皱了一角）站门口干什么，进来，店还没锁。", "claims": []},
+      "rationale": "经营书店不证明手里有价签；临近打烊不证明店门当前未锁。"
+    },
+    {
+      "case_id": "ordinary-expression-without-prop",
+      "expected_accept": true,
+      "speech": {"text": "（愣了一下）陆舟？五年没见了，你倒先问我认不认得你。", "claims": []},
+      "rationale": "当前神态自由，五年未见来自人物经历。"
+    },
+    {
+      "case_id": "book-in-hand-authored",
+      "expected_accept": true,
+      "info": {
+        "profile": {"name": "柳音", "core": "经营旧书店，嘴快心软。她和陆舟一起长大；陆舟五年前离城时没有道别，此后两人没见过。"},
+        "scene_facts": {
+          "setting": {"event_id": "scene:1", "value": "旧书店临近打烊；柳音和刚回城的陆舟在店内。柳音此刻手里拿着一本书，店门尚未上锁。", "basis": "confirmed"}
+        },
+        "observations": [{"id": "observed:1", "kind": "speech", "actor_id": "other", "speaker": "陆舟", "text": "陆舟站在门边问：你还认得我吗？"}],
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "profile:npc": "{\"name\": \"柳音\", \"core\": \"经营旧书店，嘴快心软。她和陆舟一起长大；陆舟五年前离城时没有道别，此后两人没见过。\"}",
+        "scene:1": "旧书店临近打烊；柳音和刚回城的陆舟在店内。柳音此刻手里拿着一本书，店门尚未上锁。",
+        "observed:1": "陆舟站在门边问：你还认得我吗？"
+      },
+      "speech": {"text": "（放下手里的书，愣了一下）陆舟？店还没锁，进来说。", "claims": []},
+      "rationale": "当下手里的书及未锁状态均由作者明确给出。"
+    },
+    {
+      "case_id": "present-choice-not-past-memory",
+      "expected_accept": true,
+      "cast": [{"id": "npc", "name": "温眠"}, {"id": "other", "name": "旧友"}],
+      "intent": {"act": "speak", "purpose": "回答现在是否愿意去河边", "addressee_id": "other"},
+      "info": {
+        "profile": {"name": "温眠", "core": "街角裁缝，平时说话温和。姐姐去年离世；以前两人每周六会去河边散步。"},
+        "scene_facts": {"setting": {"event_id": "scene:1", "value": "裁缝铺里；温眠与认识姐姐的旧友在场。", "basis": "confirmed"}},
+        "observations": [{"id": "observed:1", "kind": "speech", "actor_id": "other", "speaker": "旧友", "text": "旧友问：你现在愿意去河边走走吗？"}],
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "profile:npc": "{\"name\": \"温眠\", \"core\": \"街角裁缝，平时说话温和。姐姐去年离世；以前两人每周六会去河边散步。\"}",
+        "scene:1": "裁缝铺里；温眠与认识姐姐的旧友在场。",
+        "observed:1": "旧友问：你现在愿意去河边走走吗？"
+      },
+      "speech": {"text": "今天我不想去河边。我们在这儿坐会儿，好吗？", "claims": []},
+      "rationale": "当下个人态度可在答复中形成，不是对既往行动的回忆。"
+    }
+  ]
+}

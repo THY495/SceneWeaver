@@ -7,7 +7,7 @@ import re
 from ..context import ContextPressure
 from ..observability.timing import annotate, measure, timed
 from ..providers import ProviderError
-from ..schemas import ActorIntent
+from ..schemas import ActorIntent, ActorTurnDraft
 from .context import NPCServices, TurnContext
 from .item_expression import result_candidates, result_focus
 
@@ -27,6 +27,7 @@ async def plan_actor(
     continuation: str,
     director_assignment: dict | None = None,
     operation_scope: str = "",
+    combine_speech: bool = False,
 ) -> dict | None:
     annotate(actor_id=actor.id, step=step)
     db, runtime = services.db, services.runtime
@@ -39,6 +40,20 @@ async def plan_actor(
             runtime.check(task.id, task.lease_version)
             await asyncio.sleep(1)
     known_cast = turn.visible_cast(info)
+    from .combined_generation import (
+        basis_digest,
+        draft_instruction,
+        fallback_reason,
+        joint_intent_instruction,
+    )
+
+    reason = fallback_reason(task, info, director_assignment) if combine_speech else "disabled"
+    combined = combine_speech and reason is None
+    from .speech_packets import PacketTurnDraft, to_actor_speech, uses_packets
+
+    packets = uses_packets(services)
+    draft_basis = basis_digest(info, planning) if combined else None
+    annotate(actor_generation="combined_context" if combined else "separate", generation_fallback=reason)
     known_ids = {person["id"] for person in known_cast}
     from ..observations import observed_record
 
@@ -74,10 +89,12 @@ async def plan_actor(
             ),
         },
     ]
+    original_system = planning[0]["content"]
     planning[0] = {
         "role": "system",
         "content": planning[0]["content"]
-        + "\n本次只决定是否行动，不生成台词。选择speak、wait或inspect实际检索自己的资料。"
+        + ("\n本次同时决定本片段意图并表达台词。" if combined else "\n本次只决定是否行动，不生成台词。")
+        + "选择speak、wait或inspect实际检索自己的资料。"
         "根据未回答问题、承诺或目标提出一个具体意图；已经回答或无事可做就wait。"
         "conversation触发的第0片段优先处理current_player_message，不能因旧NPC问题尚未回答而忽略玩家新输入。"
         "后续片段才接续本轮已提交的交流。意图仅描述要做什么，不要预先编造未知答案或观察细节。"
@@ -98,6 +115,8 @@ async def plan_actor(
         "trigger_reason说明新事件或尚未处理的问题如何推动目标；idle时没有新机会就wait，"
         "不能仅因目标仍未完成而重复催问。被回避的问题只有出现新证据或条件变化才再次追问。",
     }
+    if combined:
+        planning[0]["content"] = original_system + joint_intent_instruction()
     if director_assignment is not None:
         planning[0]["content"] += (
             "\n本轮有导演分配的单段任务：玩家完整请求是整场交流的动机，不要求你在此片段独自完成全部请求。"
@@ -106,7 +125,12 @@ async def plan_actor(
             "不知答案可以明确说明未知或需要核实，不得编造。收尾回应不额外索要新的决定或资料。"
             "任务指定先与NPC商量时，应面向该NPC，可简短确认玩家请求，"
             "也不把稍后向玩家汇报并进同一purpose。向NPC征询意见不等于等待玩家。"
+            "导演任务的addressees若有一人，该ID是本片段唯一主要接收者；"
+            "其他在场角色仍可听见，无需把公开发言改成对玩家报告。"
             "后续演出由导演安排，本次remaining_request填空，不接管其他片段的待办。"
+            "dialogue_capacity表示本段可安排的回应位置，不是人物知识或行动结果。"
+            "向NPC提出待答问题时，优先选scheduled_reply_actor_ids中的对象；can_schedule_more=false且对象没有后续位置时，"
+            "以已有答案、未知、拒绝或留待后续的意愿收束，不附加需要该NPC立刻回复的新问题。"
             "already_completed_units是本轮已经正式发生的片段，不要把它们再次写入purpose。"
             "若当前任务仅询问玩家，purpose只描述询问；前一段回应NPC已完成，不能再以‘回应后询问’重做。"
         )
@@ -118,7 +142,7 @@ async def plan_actor(
                 + "\n在自身知情和动机范围内回应此目标；可以拒绝、暂缓或等待玩家。",
             }
         )
-    planning[0]["content"] += (
+    object_instruction = (
         "\nknown_objects是已登记可操作物品，不能凭空登记物品或宣布未记录的行动成功。"
         "想在当前可观察范围寻找已知物品时act=search，search_action填object_id；"
         "记忆中的旧位置可以支持尝试，但不保证找到，不能凭空获知远处位置。"
@@ -146,6 +170,13 @@ async def plan_actor(
         "解释依据是已提交的失败记录，不将失败写成完成；成功打开后只依据新观察到的内容继续操作。"
         "若本片段仅简短说明某次已提交物品操作的结果，act=speak并将result_event_id填该观察事件ID。"
         "这不是执行动作，只解释那次结果；复杂历史问题或另提新要求不填此字段。"
+    )
+    planning[0]["content"] += (
+        object_instruction if not combined or info.get("known_objects") or info.get("known_agreements")
+        else "\n当前工作集没有已登记可操作物品或协议；本片段在实际见闻范围内选择表达或等待。"
+        "若要发起世界动作，仍用相应动作字段交给运行时，speech=null；不要猜测物品ID或预写成功。"
+    )
+    planning[0]["content"] += (
         "有pending_replies时可填reply_to对应question_id，并选择response_kind=answer/refuse/defer/silence。"
         "不知道可以回答不知道，拒答须有角色动机，暂缓须明确说明；有待回应问题不应无故wait。"
         "当前玩家输入优先，旧问题可以暂缓。向别人提问时expects_reply=true并指定addressee_id。"
@@ -218,6 +249,8 @@ async def plan_actor(
         current_event = s.get(SceneRecord, task.payload["event_id"]) if task.payload.get("event_id") else None
         if current_event and not current_event.payload.get("exchange", {}).get("expects_reply"):
             reply_ids.add(current_event.id)
+    if combined:
+        planning[0]["content"] += "\n" + draft_instruction(task, actor.id, info, segments=packets)
     failures = []
     for attempt in range(2):
         request = (
@@ -236,7 +269,10 @@ async def plan_actor(
                     "不能使用object_action；拿取用move且destination为actor和自己的ID。"
                     "handoff_decision_required表示本轮是待决递交，必须对指定提案选择accept或refuse；"
                     "handoff_result_speech_required表示实际交接已完成，只需简短回应结果。"
-                    "不要凭空补建义务。重新输出完整意图："
+                    "director_addressee_mismatch表示本片段发言的主要接收者与导演单人任务不同；"
+                    "可以在发言中简短提到其他在场人，但addressee_id须填指定角色。"
+                    "不要凭空补建义务。重新输出完整意图；使用ActorTurnDraft时同时保留speech，"
+                    "speech_required表示context发言必须提供台词："
                     + json.dumps(
                         {
                             "issues": failures,
@@ -250,26 +286,46 @@ async def plan_actor(
                 },
             ]
         )
-        intent = await services.provider.chat(
+        generated = await services.provider.chat(
             task.id,
-            "role_intent",
+            "dialogue" if combined else "role_intent",
             request,
-            schema=ActorIntent,
-            max_tokens=900,
-            operation=f"{operation_scope}intent:{step}:{actor.id}:{attempt}",
+            schema=(PacketTurnDraft if packets else ActorTurnDraft) if combined else ActorIntent,
+            max_tokens=2200 if combined else 900,
+            operation=(
+                f"{operation_scope}actor-turn-v3:{step}:{actor.id}:{basis_digest(info, request)[:24]}:{attempt}"
+                if combined
+                else f"{operation_scope}intent:{step}:{actor.id}:{attempt}"
+            ),
         )
+        if combined:
+            candidate = (PacketTurnDraft if packets else ActorTurnDraft).model_validate(generated)
+            intent = candidate.intent.model_dump()
+            draft = (to_actor_speech(candidate.speech.model_dump()) if packets
+                     else candidate.speech.model_dump()) if candidate.speech else None
+        else:
+            intent, draft = generated, None
         if task.payload.get("item_result_event_id") and intent.get("act") == "speak":
             # This system-triggered turn only explains the committed player handoff.
             # result_focus below still requires this actor's actual observation.
             intent["result_event_id"] = task.payload["item_result_event_id"]
         with measure("npc.intent_validation") as validation:
             failures = []
+            if combined and intent["act"] == "speak" and intent["retrieval"] == "context" and draft is None:
+                failures.append("speech_required")
             if not set(intent["source_ids"]).issubset(valid):
                 failures.append("source_unavailable")
             if intent.get("reply_to") not in {None, *reply_ids}:
                 failures.append("reply_unavailable")
             if intent.get("goal_id") not in {None, *goal_ids}:
                 failures.append("goal_unavailable")
+            assigned_to = (director_assignment or {}).get("addressees") or []
+            if (
+                len(assigned_to) == 1
+                and intent.get("act") == "speak"
+                and intent.get("addressee_id") != assigned_to[0]
+            ):
+                failures.append("director_addressee_mismatch")
             if intent.get("act") == "object_action" and any(
                 item.get("protocol") == 2
                 and item["id"] == (intent.get("object_action") or {}).get("object_id")
@@ -292,6 +348,14 @@ async def plan_actor(
                 result_focus(intent, info)
             except ProviderError:
                 failures.append("result_focus_invalid")
+            if failures == ["reply_unavailable"] and intent.get("addressee_id") in known_ids:
+                from .intent_reference import normalize_statement_reference
+
+                normalized = normalize_statement_reference(intent, info)
+                if normalized is not intent:
+                    intent = normalized
+                    failures = []
+                    validation.mark("ordinary_statement_reference_normalized")
             for code in failures:
                 validation.mark(code)
             validation.mark("rejected" if failures else "accepted")
@@ -310,6 +374,10 @@ async def plan_actor(
                 raise ProviderError("角色意图引用了未感知的事件。")
             if "goal_unavailable" in failures:
                 raise ProviderError("意图引用的目标不属于此角色的活跃目标。")
+            if "director_addressee_mismatch" in failures:
+                raise ProviderError("演员意图未面向导演指定的主要接收者。")
+            if "speech_required" in failures:
+                raise ProviderError("合并发言缺少台词，未提交。")
             raise ProviderError("待回应事项不属于本角色或已结束。")
     if intent.get("addressee_id") not in {None, *known_ids}:
         raise ProviderError("意图对象不在当前交流范围。")
@@ -367,4 +435,19 @@ async def plan_actor(
         # The director owns subsequent jobs. The legacy actor continuation field
         # must not turn a later actor's assignment into this candidate's obligation.
         intent["remaining_request"] = ""
+    if combined:
+        if (
+            draft is not None
+            and candidate.intent.act == "speak"
+            and intent["act"] == "speak"
+            and intent["retrieval"] == "context"
+            and intent.get("response_kind") != "silence"
+        ):
+            intent["_speech_draft"] = {
+                "speech": draft,
+                "actor_revision": info["actor_revision"],
+                "basis_digest": draft_basis,
+            }
+        else:
+            annotate(generation_fallback="action_or_knowledge", combined_speech_reused=False)
     return intent

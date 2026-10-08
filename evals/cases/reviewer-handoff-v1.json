@@ -1,0 +1,77 @@
+{
+  "suite_id": "reply-handoff-versus-self-check",
+  "version": 1,
+  "defaults": {
+    "cast": [
+      {
+        "id": "npc",
+        "name": "陈默"
+      },
+      {
+        "id": "p",
+        "name": "访客"
+      }
+    ],
+    "intent": {
+      "act": "speak",
+      "purpose": "回应玩家登记问题，未知可承认；可以询问其个人决定。",
+      "addressee_id": "p",
+      "expects_reply": true
+    },
+    "sources": {},
+    "info": {
+      "profile": {
+        "name": "陈默",
+        "core": "谨慎而耐心的车站值班员，帮助描述遗失箱子，尊重访客是否登记的决定。"
+      },
+      "observations": []
+    }
+  },
+  "cases": [
+    {
+      "case_id": "unknown-self-check",
+      "expected_accept": true,
+      "expected_expects_reply": false,
+      "speech": {
+        "text": "还需要哪些资料，我现在不知道，需要先核实。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "promise-followup",
+      "expected_accept": true,
+      "expected_expects_reply": false,
+      "speech": {
+        "text": "我核实清楚以后再告诉你。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "direct-question",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "speech": {
+        "text": "你愿意登记吗？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "explicit-request",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "speech": {
+        "text": "请告诉我你是否愿意登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "acknowledge-only",
+      "expected_accept": true,
+      "expected_expects_reply": false,
+      "speech": {
+        "text": "好的，我理解你的意思了。",
+        "claims": []
+      }
+    }
+  ]
+}

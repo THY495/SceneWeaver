@@ -3,6 +3,8 @@ import { RequestAudit, type RequestRecord } from './RequestAudit'
 import { inTraceScope } from './traceScope'
 import { PerformanceLanes } from './PerformanceLanes'
 import { StoryTiming } from './StoryTiming'
+import { VoiceFailureDetails } from './VoiceFailureDetails'
+import { performanceEvidence, type PerformanceSpan } from './performanceTimeline'
 
 type Span = {
   id: string
@@ -11,7 +13,7 @@ type Span = {
   start_ms: number
   duration_ms: number | null
   status: string
-  attributes: {
+  attributes: PerformanceSpan['attributes'] & {
     role?: string
     cache_hit?: boolean
     actor_id?: string
@@ -19,10 +21,21 @@ type Span = {
     candidate_status?: string
     audio_status?: string
     candidate_revision?: number
+    assignment_authorization?: 'semantic' | 'grounded_response'
+    assignment_source_event_id?: string
+    assignment_grounded_rejected?: boolean
+    query_cache_hit?: boolean
+    query_has_indexed_memory?: boolean
+    query_inflight_joined?: boolean
     tts_connection_ms?: number
     tts_task_ready_ms?: number
     tts_first_pcm_ms?: number
     tts_complete_ms?: number
+    audio_error_type?: string
+    audio_failure_phase?: string
+    audio_received_close_code?: number
+    audio_sent_close_code?: number
+    audio_received_close_first?: boolean
   }
   marks: Record<string, number>
 }
@@ -61,21 +74,27 @@ type Run = {
   dropped_spans: number
 }
 type Playback = { playback_id: string; status: string; timings: Record<string, unknown> }
-type Trace = {
-  scene_routing?: {
-    accepted: boolean
-    source_seq: number
-    decision: {
+type RoutingAudit = {
+  accepted: boolean
+  source_seq: number
+  decision: {
+    reason: string
+    edge_id: string | null
+    evidence?: { event_id: string; quote: string }[]
+    evidence_scope_repair_count?: number
+    assessments?: {
+      edge_id: string
+      status: 'met' | 'not_met' | 'uncertain'
+      player_action?: 'independent' | 'dependent' | 'uncertain'
+      current_agreements?: { actor: string; status: string; reason: string }[]
       reason: string
-      edge_id: string | null
-      assessments?: {
-        edge_id: string
-        status: 'met' | 'not_met' | 'uncertain'
-        reason: string
-        evidence: { event_id: string; quote: string }[]
-      }[]
-    }
-  } | null
+      evidence: { event_id: string; quote: string }[]
+    }[]
+  }
+}
+type Trace = {
+  scene_routing?: RoutingAudit | null
+  player_action_routing?: RoutingAudit | null
   timings: Run[]
   cost_usd: number
   unavailable: string[]
@@ -90,11 +109,12 @@ type Props = {
 const labels: Record<string, string> = {
   'worker.execute': '执行及收尾',
   'npc.turn': 'NPC互动链',
+  'scene.routing': '剧情出口评估（独立行动或整场互动）',
   'npc.plan': '意图规划',
   'npc.perform': '表达与审核',
   'npc.claim_validation': '声明与来源校验',
   'npc.intent_validation': '意图引用校验',
-  'npc.semantic_review_result': '语义审核结论（模型判断）',
+  'npc.semantic_review_result': '台词审查与调度校验结论',
   'context.assemble': '上下文组装',
   'memory.context': '个人记忆工作集',
   'memory.query': '记忆查询准备',
@@ -113,13 +133,26 @@ const labels: Record<string, string> = {
   'budget.reserve': '费用预留',
   'budget.settle': '费用结算',
   'director.plan': '导演规划',
+  'npc.assignment': '角色任务授权',
   'npc.review_audio': '审查与首句语音并行',
   'voice.candidate_prepare': '候选首句语音准备',
 }
 const marks: Record<string, string> = {
-  semantic_rejected: '语义审核拒绝',
-  semantic_accepted: '语义审核接受（不代表人工验收）',
+  semantic_rejected: '台词未通过审查或调度校验',
+  semantic_accepted: '台词通过本轮校验（不代表人工验收）',
   review_flag_rejected: '审核返回拒绝',
+  reply_capacity_exhausted: 'NPC 待答问题没有后续发言位置',
+  director_addressee_mismatch: '台词接收者与导演任务冲突',
+  response_contract_reply_mismatch: '仅回应片段额外请求答复',
+  response_binding_source_invalid: '回应任务来源无效',
+  response_binding_missing_or_invalid: '回应绑定字段缺失或格式无效',
+  response_binding_source_mismatch: '回应来源与当前任务不一致',
+  response_binding_quote_mismatch: '回应片段不在当前候选原文中',
+  response_binding_quote_blank: '回应片段只有空白',
+  response_binding_quote_missing: '没有实际回应原文片段',
+  response_binding_delivery_mismatch: '回应状态与发言类型不一致',
+  response_task_not_addressed: '模型判为未回应实际任务',
+  duplicate_npc_request: '同一 NPC 本轮已有待答问题',
   review_has_issues: '审核列出问题',
   unsupported_check: '存在不受支持的断言',
   reason_unsupported_fact: '无依据事实',
@@ -241,29 +274,78 @@ export function TimingTrace({ story, request, initialTask = '' }: Props) {
           <p>此任务已结算费用：${trace.cost_usd.toFixed(5)}（不含尚未结算预留及其他后台任务）</p>
           <details>
             <summary>AI 转场判断</summary>
-            {trace.scene_routing ? (
+            {trace.scene_routing || trace.player_action_routing ? (
               <>
-                <p>
-                  {trace.scene_routing.accepted ? '已提出转场候选，仍需阅读及执行校验' : '未提出转场候选'}
-                  {' · '}世界序号 {trace.scene_routing.source_seq}
-                </p>
-                <p>{trace.scene_routing.decision.reason}</p>
-                {trace.scene_routing.decision.assessments?.map((assessment) => (
-                  <div key={assessment.edge_id}>
-                    <strong>
-                      出口 {assessment.edge_id}：
-                      {{ met: '满足', not_met: '不满足', uncertain: '不确定' }[assessment.status]}
-                    </strong>
-                    <p>{assessment.reason}</p>
-                    {assessment.evidence.map((evidence, i) => (
-                      <blockquote key={`${evidence.event_id}:${i}`}>
-                        {evidence.quote}
-                        <br />
-                        <small>来源事件：{evidence.event_id}</small>
-                      </blockquote>
-                    ))}
-                  </div>
-                ))}
+                {[
+                  { title: '整场互动出口', routing: trace.scene_routing },
+                  { title: '玩家独立行动出口（不代表 NPC 表演完成）', routing: trace.player_action_routing },
+                ]
+                  .filter((row) => row.routing)
+                  .map(
+                    ({ title, routing }) =>
+                      routing && (
+                        <section key={title}>
+                          <h4>{title}</h4>
+                          <p>
+                            {routing.accepted ? '已提出转场候选，仍需阅读及执行校验' : '未提出转场候选'}
+                            {' · '}世界序号 {routing.source_seq}
+                          </p>
+                          <p>{routing.decision.reason}</p>
+                          {!!routing.decision.evidence_scope_repair_count && (
+                            <p>
+                              引用字段已按来源归位；下面保留模型原始引用分配，最终候选仅使用已校验的行动证据。
+                            </p>
+                          )}
+                          {routing.accepted && routing.decision.evidence && (
+                            <details>
+                              <summary>最终候选的行动证据</summary>
+                              {routing.decision.evidence.map((evidence, i) => (
+                                <blockquote key={`${evidence.event_id}:${i}`}>
+                                  {evidence.quote}
+                                  <br />
+                                  <small>来源事件：{evidence.event_id}</small>
+                                </blockquote>
+                              ))}
+                            </details>
+                          )}
+                          {routing.decision.assessments?.map((assessment) => (
+                            <div key={assessment.edge_id}>
+                              <strong>
+                                出口 {assessment.edge_id}：
+                                {{ met: '满足', not_met: '不满足', uncertain: '不确定' }[assessment.status]}
+                              </strong>
+                              <p>{assessment.reason}</p>
+                              {assessment.player_action && (
+                                <p>
+                                  行动依赖：
+                                  {
+                                    { independent: '独立', dependent: '依赖其他回应', uncertain: '尚不明确' }[
+                                      assessment.player_action
+                                    ]
+                                  }
+                                </p>
+                              )}
+                              {assessment.current_agreements?.map((agreement) => (
+                                <p key={agreement.actor}>
+                                  当前同行立场 · {agreement.actor}：
+                                  {{ agreed: '同意', declined: '拒绝', uncertain: '不确定' }[
+                                    agreement.status
+                                  ] ?? agreement.status}{' '}
+                                  · {agreement.reason}
+                                </p>
+                              ))}
+                              {assessment.evidence.map((evidence, i) => (
+                                <blockquote key={`${evidence.event_id}:${i}`}>
+                                  {evidence.quote}
+                                  <br />
+                                  <small>来源事件：{evidence.event_id}</small>
+                                </blockquote>
+                              ))}
+                            </div>
+                          ))}
+                        </section>
+                      ),
+                  )}
                 <p>
                   这里只显示通过物品硬条件筛选后送入模型的出口。候选不代表已经转场，模型判断也不等于世界事实。
                 </p>
@@ -356,6 +438,16 @@ export function TimingTrace({ story, request, initialTask = '' }: Props) {
                           {span.attributes.cache_hit ? ' · 缓存命中' : ''}
                           {span.attributes.candidate_status && ` · 候选 ${span.attributes.candidate_status}`}
                           {span.attributes.audio_status && ` · 音频 ${span.attributes.audio_status}`}
+                          {span.attributes.assignment_authorization &&
+                            ` · ${span.attributes.assignment_authorization === 'grounded_response' ? '运行时核验真实发言来源' : '模型语义授权'}`}
+                          {span.attributes.assignment_source_event_id &&
+                            ` · 来源 ${span.attributes.assignment_source_event_id}`}
+                          {span.attributes.assignment_grounded_rejected && ' · 结构化来源不成立'}
+                          {span.attributes.query_cache_hit && ' · 查询向量已缓存'}
+                          {span.attributes.query_inflight_joined && ' · 复用进行中的查询请求'}
+                          {span.attributes.query_has_indexed_memory === false && ' · 本角色无已索引记忆'}
+                          {performanceEvidence(span).length > 0 &&
+                            ` · ${performanceEvidence(span).join(' · ')}`}
                         </div>
                         <div className="timing-track" aria-hidden="true">
                           <div
@@ -390,6 +482,15 @@ export function TimingTrace({ story, request, initialTask = '' }: Props) {
                             </span>
                           ))}
                         </small>
+                        <VoiceFailureDetails
+                          diagnostic={{
+                            failure_type: span.attributes.audio_error_type,
+                            failure_phase: span.attributes.audio_failure_phase,
+                            received_close_code: span.attributes.audio_received_close_code,
+                            sent_close_code: span.attributes.audio_sent_close_code,
+                            received_close_first: span.attributes.audio_received_close_first,
+                          }}
+                        />
                       </li>
                     ))}
                 </ol>
@@ -457,6 +558,7 @@ export function TimingTrace({ story, request, initialTask = '' }: Props) {
                     </p>
                   ) : null,
                 )}
+                <VoiceFailureDetails diagnostic={playback.timings.failure} />
               </div>
             )),
           )}

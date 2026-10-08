@@ -3,14 +3,12 @@
 import asyncio
 import json
 import re
-from functools import partial
 
 from ..context import ContextPressure
 from ..evidence import model_evidence, normalize_citations
 from ..observability.timing import annotate, measure, timed
 from ..providers import OutputTruncated, ProviderError, estimate_tokens
 from ..role_policy import (
-    ROLE_EXPRESSION_POLICY,
     citation_repair_sources,
     claim_issues,
     director_handoff_leak,
@@ -22,6 +20,12 @@ from ..schemas import ActorReview, ActorSpeech
 from ..storage import Conversation, Task
 from .audit import retrieval_message
 from .context import NPCServices, TurnContext
+from .intent_recovery import (
+    SpeechPurposeRepair,
+    execution_intent,
+    purpose_recovery_messages,
+    unsupported_candidate_checks,
+)
 from .item_expression import (
     RESULT_EXPRESSION,
     RESULT_LANGUAGE,
@@ -31,11 +35,33 @@ from .item_expression import (
     result_focus,
 )
 from .review import review_messages
+from .speech_contract import performance_policy
 from .speech_projection import project_speech
 
 
 class UnsafeDraftExhausted(ProviderError):
-    """All bounded speech candidates were rejected before publication."""
+    """A rejected performance cannot be published under its current task."""
+
+
+class ResponseContractConflict(UnsafeDraftExhausted):
+    """A reviewed player question needs a different authorized turn contract."""
+
+
+def requires_contract_replanning(review, intent, assignment, player_id):
+    """Only a clean review of an intended player question can change tasks."""
+    delivery = review.get("delivery") or {}
+    return bool(
+        player_id
+        and (assignment or {}).get("response_utterance")
+        and assignment.get("response_turn_policy") == "answer_only"
+        and assignment.get("addressees") == [player_id]
+        and intent.get("addressee_id") == player_id
+        and intent.get("expects_reply") is True
+        and delivery.get("addressee_id") == player_id
+        and delivery.get("expects_reply") is True
+        and review.get("provider_semantic_clean") is True
+        and review.get("scheduling_issues") == ["response_contract_reply_mismatch"]
+    )
 
 
 @timed("npc.perform")
@@ -48,11 +74,18 @@ async def perform_actor(
     step: int,
     *,
     operation_scope: str = "",
+    initial_speech: dict | None = None,
     voice_service=None,
     voice: str = "",
     director_assignment: dict | None = None,
 ):
     annotate(actor_id=actor.id, step=step, voice_candidate_enabled=voice_service is not None)
+    # Grounded response tasks have an actual utterance to address. Whole-part
+    # deletion cannot prove the surviving mood/comment still fulfils that task.
+    # Keep bounded repair plus full review rather than promoting this remainder.
+    grounded_response = bool((director_assignment or {}).get("response_utterance")
+        and (director_assignment or {}).get("response_turn_policy") in {"answer_only", "invite_player"})
+    annotate(grounded_response_pruning_disabled=grounded_response)
     db, runtime = services.db, services.runtime
     while True:
         runtime.check(task.id, task.lease_version)
@@ -66,6 +99,11 @@ async def perform_actor(
         except ContextPressure:
             await asyncio.sleep(1)
     known_cast = turn.visible_cast(info)
+    working_basis = None
+    if initial_speech is not None:
+        from .combined_generation import basis_digest
+
+        working_basis = basis_digest(info, context)
     known_ids = {person["id"] for person in known_cast}
     focused_result = result_focus(intent, info)
     if intent.get("act") == "agreement_proposal":
@@ -161,36 +199,13 @@ async def perform_actor(
             "evidence": [],
             "missing": [],
         }
-    context[0]["content"] += ROLE_EXPRESSION_POLICY + (
-        (
-            "\n此刻没有玩家参与场景；根据自己的观察、关系和目标，决定是否主动行动或与在场人物交流。"
-            if task.kind in {"scene_run", "npc_step"}
-            else "\n玩家控制一位在场人物；你以当前角色档案所示身份参与这场公开互动。"
-        )
-        + "历史中的其他人物发言只是公开说法，不自动成为已确认事实。"
-        "其他人物的私下经历和秘密不可猜测。只写自己的台词与简短动作，通常一至三段。"
-        "不替玩家说话、决定、移动、表达内心或接受提议。适度推进可由自己的询问、提议和动作完成，"
-        "不得凭空解决关键悬念或宣布玩家已经行动。可接续已提交的新观察，不得假装听到尚未提交的草稿。"
-        "不得编造过去亲历、见过的物品、确切时间地点或物证细节来填补未知；不知道就自然地承认未知。"
-        "缺少阅读依据时说‘我目前无法确认原文’或‘我不掌握原文’，不要把未知写成‘我从未看过’、"
-        "‘我刚才没读过’等未获证实的过去经历。"
-        "场景里未提供的天气细节、可见物件、公告正文、既有规章也不要用来使台词更生动；"
-        "缺少依据时优先表达本人的态度、选择或向在场者询问，不必补出一段环境描写。"
-        "历史里你自己说过的话不等于已确认的经历，必须由角色设定或已确认事件支持。不要重复输出人物姓名标题。"
-        "即使不影响主线，也不能编造自己过去已经查找、核验、阅读、搬运过的行动或既有物品外观；"
-        "可以现在提议去查，但不能说自己刚才查过。已确认的位置直接承认知道，不追加虚构的确认过程。"
-        "意图purpose只是待核实的行动计划，不是事实来源；其中无依据的具体细节必须舍弃。"
-        "已登记物品操作只能由object_action或item_action执行，普通台词不能宣称完成新操作。"
-        "可依据自己实际观察到的item_action_result解释此前成功或失败；rejected仅证明尝试未完成。"
-        "规则返回locked只证明当次上锁阻碍，不能据此编造锁扣、钥匙孔、密码盘等具体外观或解锁机制。"
-        "所有权或口头允许不等于锁已解除，不承诺仅确认所有人即可重试成功。失败解释优先一句说明加一个必要询问。"
-        "known_objects是最近实际观察到的状态，不证明未观察期间始终未变。"
-        "response_kind=refuse时明确以角色身份拒绝；defer则明确暂缓，不伪装已回答。"
-        "只实现本片段purpose，面向addressee_id，不要提前说remaining_request里留给下一片段的话。"
-        "即使玩家同时提出多项要求，本片段也不能越过意图边界。正文直接进入实质内容，不重复接话开场。"
-    )
+    context[0]["content"] += performance_policy(task)
+    intent_context_index = len(context)
     context.append(
-        {"role": "user", "content": "获准的本次意图（数据）：" + json.dumps(intent, ensure_ascii=False)}
+        {
+            "role": "user",
+            "content": "本次意图建议（数据，不是事实）：" + json.dumps(intent, ensure_ascii=False),
+        }
     )
     if director_assignment is not None:
         context.append(
@@ -199,10 +214,14 @@ async def perform_actor(
                 "content": "已通过本角色知情检查的单段演出任务（数据，不是事实或强制立场）："
                 + json.dumps(director_assignment, ensure_ascii=False)
                 + "\n结合自身意图，仅完成本片段的一次回应，面向一个主要接收者。"
+                "任务的addressees只有一人时，需要答复的问题也只向此人；"
+                "可提及其他人的话，不另向其他人请求答复或行动。"
                 "遵守delivery_constraints中的表达长度与节奏；不要把这些后台要求念给角色听。"
                 "演出交接由后台处理；台词只表达人物此刻的态度和意图，并以场景内的自然语言收尾。"
                 "回答任务中的具体问题，不知答案时明确说明未知或需核实，不能只复述对方的意愿。"
                 "完成确认或收尾就自然结束，不习惯性附加新问题；只有本片段目的确实需要回答时才提问。"
+                "若dialogue_capacity.can_schedule_more=false，对不在scheduled_reply_actor_ids中的NPC，"
+                "不要再提出本段待答问题；可表达希望稍后商量、承认未知或保留意见，不能替对方回答。"
                 "整场玩家请求可由后续角色/片段完成；向另一人物商量前可简短回应玩家，"
                 "但只向本片段对象提出一个待答请求，不再转头要求玩家回答。"
                 "提及他人不等于对他人发言，但不要增加要求另一人答复或行动的第二个交付目标。"
@@ -307,25 +326,10 @@ async def perform_actor(
             + json.dumps(list(sources), ensure_ascii=False),
         }
     )
-    context[0]["content"] += (
-        "\n正文直接进入实质内容，不重复问候或我听着等开场；可能已有同角色短接话。"
-        "\n输出ActorSpeech JSON。text是全部台词和动作；每条可核验事实必须列入claims，"
-        "claims.text必须从完整text中逐字摘取连续原句，不可概括改写；"
-        "claims.mode标注fact/reported/belief/hypothesis/proposal/commitment/action；来源必须支持相应性质。"
-        "source_id选给定ID，quote逐字摘自该来源原文。纯提问、建议、表情可以不列claims；不得伪造来源或引文。"
-        "引用speech来源只可用于reported等发言/主观记录，不能把它的内容标为fact或已执行action；"
-        "回忆自己或别人说过、答应过的话也用reported，不将台词中的经历当作独立证明。"
-        "玩家说自己听见某句话，不等于你也听见；若没有本角色的观察，不能说‘我也听到’。"
-        "自己先前说过‘我没听见’也只证明自己说过，不独立证明现在的听闻经历；"
-        "可说‘我之前说过没听见，但目前不能替你确认’，不要把旧自述重新标为事实。"
-        "获准的隐瞒或欺骗可作为角色行为，但不把谎言标为有据事实。"
-        "个人目标不等于双方已达成约定：只有原始观察明确记载双方同意，才能说我们说好、已经约定；"
-        "否则说我希望或我提议。被问到已获知的具体内容时直接回答，不用那两句、那件事代替内容。"
-        "spoken_parts按顺序列出text中可直接朗读的台词，每项必须逐字来自text；"
-        "不得包含括号动作、旁白、角色姓名标题、语音控制标签。没有台词则空列表。"
-        "performance与spoken_parts逐项对应，text完全相同；expression选表情枚举，pose选原地姿态枚举，"
-        "voice_direction仅写音量、语速、情绪等简短语气描述。不得借表现字段加入秘密或执行世界动作。"
-    )
+    from .speech_packets import PacketSpeech, output_contract, to_actor_speech, uses_packets
+
+    packets = uses_packets(services)
+    context[0]["content"] += output_contract(packets)
     if result_candidates(info):
         context[0]["content"] += "\n" + RESULT_LANGUAGE
     if focused_result:
@@ -348,22 +352,49 @@ async def perform_actor(
         result_event_id=focused_result["id"] if focused_result else None,
     )
     draft_context = list(context)
+    # A combined candidate is private and goes through the exact same local,
+    # semantic and audio gates. A changed working-set revision invalidates it.
+    if initial_speech is not None:
+        if (
+            initial_speech.get("actor_revision") != info["actor_revision"]
+            or initial_speech.get("basis_digest") != working_basis
+            or intent.get("retrieval") != "context"
+            or intent.get("act") != "speak"
+        ):
+            initial_speech = None
+            annotate(combined_speech_reused=False, generation_fallback="stale_or_ineligible")
     citation_repairs = semantic_repairs = 0
+    pruned_candidate = None
+    pruning_used = False
+    purpose_recovery_used = False
     private_audio, audio_status = None, "not_requested"
-    # One local citation repair and up to two semantic repairs may be needed
+
+    async def generate_speech(messages, **kwargs):
+        if packets and kwargs.get("operation"):
+            kwargs["operation"] += ":speech-packets-v1"
+        value = await services.provider.chat(
+            task.id, "dialogue", messages, schema=PacketSpeech if packets else ActorSpeech, **kwargs
+        )
+        return to_actor_speech(value) if packets else value
+
+    # One local citation repair, one exact part pruning and up to two semantic repairs may be needed
     # for the same candidate. Every revision still passes both reviews before
     # publication; this is a bounded recovery path, not a review bypass.
-    for attempt in range(4):
+    for attempt in range(5):
         output_tokens = expression_token_budget(focused_result, info)
         try:
-            speech = await services.provider.chat(
-                task.id,
-                "dialogue",
-                draft_context,
-                schema=ActorSpeech,
-                max_tokens=output_tokens,
-                operation=f"{operation_scope}npc:{actor.id}:{step}:answer:{attempt}",
-            )
+            if pruned_candidate is not None:
+                speech, pruned_candidate = pruned_candidate, None
+            elif initial_speech is not None:
+                speech = ActorSpeech.model_validate(initial_speech["speech"]).model_dump()
+                initial_speech = None
+                annotate(combined_speech_reused=True)
+            else:
+                speech = await generate_speech(
+                    draft_context,
+                    max_tokens=output_tokens,
+                    operation=f"{operation_scope}npc:{actor.id}:{step}:answer:{attempt}",
+                )
         except OutputTruncated:
             # A truncated schema cannot be reviewed or repaired in place. Retry
             # only this actor candidate once with more output room.
@@ -371,15 +402,16 @@ async def perform_actor(
                 raise
             with measure("npc.output_limit_retry"):
                 annotate(candidate_revision=attempt)
-                speech = await services.provider.chat(
-                    task.id,
-                    "dialogue",
+                speech = await generate_speech(
                     draft_context,
-                    schema=ActorSpeech,
                     max_tokens=min(2400, output_tokens + 1200),
                     operation=f"{operation_scope}npc:{actor.id}:{step}:answer:{attempt}:expanded",
                 )
         speech = bind_result_quotes(speech, focused_result)
+        from .speech_references import normalize_own_profile_reference
+
+        speech, repaired_references = normalize_own_profile_reference(speech, actor.id, sources)
+        annotate(profile_reference_repair_count=repaired_references)
         answer = speech["text"]
         with measure("npc.claim_validation") as validation:
             annotate(candidate_revision=attempt)
@@ -401,6 +433,17 @@ async def perform_actor(
             annotate(local_issue_count=len(invalid))
             validation.mark("rejected" if invalid else "accepted")
         if invalid:
+            if not pruning_used and not grounded_response:
+                from .speech_pruning import prune_local_fact_parts
+
+                with measure("npc.local_fact_pruning") as pruning:
+                    pruned_candidate = prune_local_fact_parts(
+                        speech, invalid, sources, info.get("observations", []), task.payload.get("text", "")
+                    )
+                    pruning.mark("candidate_retained" if pruned_candidate is not None else "declined")
+                if pruned_candidate is not None:
+                    pruning_used = True
+                    continue
             if citation_repairs:
                 raise UnsafeDraftExhausted(
                     "声明、来源或后台控制校验未通过（"
@@ -416,13 +459,20 @@ async def perform_actor(
                     "请删去场景/回合/控制权交还等后台调度用语，只保留角色在世界中的自然回应。"
                     "若含unexecuted_stage_object_action，删除括号里未经世界动作执行的物品操作；"
                     "可保留点头、停顿等不改变物品状态的表演，不能改写成另一种物品动作。"
+                    "若含notice_receipt_unclaimed或notice_receipt_not_in_quote，"
+                    "当前‘通知没到/我没收到’须有明确否定接收依据；"
+                    "‘收到通知后公布’只规定条件，不证明现在尚未收到。"
+                    "无此依据则改成自身当前不掌握时间或无法核实通知，不补造过去接收经历。"
+                    "若含weather_state或reading_history相关错误，风雨等当前状态和是否读过/看清"
+                    "具体材料都须有依据，不能把它们称为自由感受来放行。"
+                    "无据时仍回应原请求，明确本人当前不知道风势或文字内容；不要补造替代现象或阅读过程。"
                     "claims.text必须逐字出现在最终台词text中；"
                     "quote必须逐字出现在对应来源。台词中用引号引用历史原话也必须逐字对应原始来源；"
                     "若只是概括就不要伪装成直接引文。speech来源只能证明曾经说过，"
                     "不能用mode=fact/action证明话中内容；转述使用reported并在台词明确归属。"
                     "玩家听闻不能变成你自己的听闻；你自己的旧说法也不能证明现在确实如此。"
                     "没有独立证据的事实应承认不知道，不重复断言。"
-                    "未知原文可说‘目前无法确认’，不要改写成无据的‘我从未看过’。"
+                    "未知原文用角色在场的自然语言说清当前未知，不补造过去是否读过的经历。"
                     "重新写出台词与claims，删除无据细节。"
                     "source_texts_for_repair仅重复已授权来源正文；quote逐字摘自其中text，"
                     "不要引用观察的包装说明、说话者标签或自己改写的概括。"
@@ -445,25 +495,122 @@ async def perform_actor(
             operation=f"{operation_scope}npc:{actor.id}:{step}:speech_projection:{attempt}",
             repair=voice_service is not None,
         )
-        review_call = partial(
-            services.provider.chat,
-            task.id,
-            "actor_review",
-            review_messages(
-                info,
-                model_evidence(evidence),
-                speech,
-                sources,
-                actor_id=actor.id,
-                documents=evidence,
-                intent=intent,
+
+        async def review_call():
+            import hashlib
+
+            from .response_review import BoundActorReview, enforce_binding, response_source
+
+            response_binding = bool(getattr(services.config, "role_response_review_binding", False)
+                and response_source(director_assignment) is not None)
+            messages = review_messages(
+                info, model_evidence(evidence), speech, sources, actor_id=actor.id, documents=evidence,
+                intent=execution_intent(intent, recovered=purpose_recovery_used),
                 player_request=task.payload.get("text", "") if turn.player_id in known_ids else "",
-                cast=known_cast,
-            ),
-            schema=ActorReview,
-            max_tokens=1000,
-            operation=f"{operation_scope}npc:{actor.id}:{step}:review:{attempt}",
-        )
+                cast=known_cast, director_assignment=director_assignment, response_binding=response_binding,
+            )
+            # A verdict belongs to this exact candidate, grounding and review
+            # contract. Restarting after a policy/context change cannot rebind it.
+            review_basis = hashlib.sha256(json.dumps(messages, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:24]
+            review = await services.provider.chat(
+                task.id,
+                "actor_review",
+                messages,
+                schema=BoundActorReview if response_binding else ActorReview,
+                max_tokens=1000,
+                operation=f"{operation_scope}npc:{actor.id}:{step}:review:{attempt}:{review_basis}",
+            )
+            delivery = review.get("delivery") or {}
+            target = delivery.get("addressee_id")
+            # Cached provider output precedes deterministic scheduling checks.
+            # Keep these rejections distinct from model factual judgments.
+            provider_accepted = review["accepted"]
+            provider_semantic_clean = bool(
+                review["accepted"] and not review.get("issues", [])
+                and all(check["supported"] for check in review.get("checks", []))
+            )
+            scheduling_issues = []
+            if response_binding:
+                review, response_issues = enforce_binding(review, director_assignment, speech["text"])
+                raw_assessment = review.get("response_assessment")
+                assessment = raw_assessment if isinstance(raw_assessment, dict) else {}
+                status = assessment.get("status")
+                annotate(response_review_binding=True, response_binding_accepted=not response_issues,
+                         response_task_status=status if status in {
+                             "responded", "refused", "deferred", "unknown", "not_addressed"} else None)
+                if response_issues:
+                    scheduling_issues.extend(response_issues)
+            from .dialogue_capacity import unavailable_npc_request
+
+            if (
+                review["accepted"]
+                and (director_assignment or {}).get("response_turn_policy") == "answer_only"
+                and (delivery if delivery else intent).get("expects_reply")
+            ):
+                scheduling_issues.append("response_contract_reply_mismatch")
+                review = {
+                    **review,
+                    "accepted": False,
+                    "issues": [
+                        *review.get("issues", []),
+                        "本次回应契约要求回答、拒绝、暂缓或承认未知后收束；"
+                        "当前台词额外请求接收者答复，请删去该请求并保留实际回应。",
+                    ],
+                }
+            if review["accepted"] and unavailable_npc_request(
+                delivery, (director_assignment or {}).get("dialogue_capacity"), turn.player_id
+            ):
+                scheduling_issues.append("reply_capacity_exhausted")
+                review = {
+                    **review,
+                    "accepted": False,
+                    "issues": [
+                        *review.get("issues", []),
+                        "本段没有为这位NPC安排后续答复位置。保留已完成的回答、未知或保留意见，"
+                        "将非必需商量留待后续，不新增本段待答问题，也不替对方回答。",
+                    ],
+                }
+            assigned_to = (director_assignment or {}).get("addressees") or []
+            if (
+                review["accepted"]
+                and delivery
+                and len(assigned_to) == 1
+                and delivery.get("response_kind") != "silence"
+                and target != assigned_to[0]
+            ):
+                scheduling_issues.append("director_addressee_mismatch")
+                review = {
+                    **review,
+                    "accepted": False,
+                    "issues": [
+                        *review.get("issues", []),
+                        "本片段应直接面向导演指定的那位角色表达；可提到其他在场人，"
+                        "但不要把回应变成向玩家或旁观者报告。",
+                    ],
+                }
+            if review["accepted"] and delivery.get("expects_reply") and target and target != turn.player_id:
+                from ..event_projection import requests_for
+
+                with db.session() as s:
+                    already_waiting = any(
+                        request["task_id"] == task.id
+                        and request["target_id"] == target
+                        and request["status"] in {"open", "partial", "defer"}
+                        for request in requests_for(s, target)
+                    )
+                if already_waiting:
+                    scheduling_issues.append("duplicate_npc_request")
+                    review = {
+                        **review,
+                        "accepted": False,
+                        "issues": [
+                            *review.get("issues", []),
+                            "该接收者本轮已有待答问题；本片段请自然回应，不再向其提出新的待答请求。",
+                        ],
+                    }
+            return {**review, "provider_accepted": provider_accepted,
+                    "provider_semantic_clean": provider_semantic_clean, "scheduling_issues": scheduling_issues}
+
         if voice_service is None:
             review = await review_call()
         else:
@@ -498,12 +645,18 @@ async def perform_actor(
                 digest(answer),
                 voice,
             )
+            with db.session() as s:
+                live_task = s.get(Task, task.id)
+                calls_used = live_task.calls if live_task else services.config.max_calls_per_task
+            review_first = attempt > 0 or calls_used >= max(0, services.config.max_calls_per_task - 12)
+            annotate(voice_review_first=review_first)
             review, private_audio, audio_status = await reviewed_audio(
                 identity,
                 review_call,
                 (lambda: voice_service.stream_candidate(task, first, voice, direction)) if first else None,
                 is_current,
                 discard_audio=voice_service.discard_candidate,
+                synthesize_after_review=review_first,
             )
             if projection_failed:
                 audio_status = "failed"
@@ -511,17 +664,34 @@ async def perform_actor(
         with measure("npc.semantic_review_result") as validation:
             annotate(
                 candidate_revision=attempt,
-                review_accepted=review["accepted"],
+                review_accepted="semantic_accepted" in semantic_review_marks(review),
+                review_provider_accepted=review["provider_accepted"],
                 review_issue_count=len(review.get("issues", [])),
                 review_unsupported_count=sum(not check["supported"] for check in review.get("checks", [])),
             )
+            assessment = review.get("response_assessment")
+            if getattr(services.config, "role_response_review_binding", False) and isinstance(assessment, dict):
+                status = assessment.get("status")
+                annotate(response_review_binding=True, response_binding_accepted=not any(
+                    code.startswith("response_binding_") or code == "response_task_not_addressed"
+                    for code in review["scheduling_issues"]), response_task_status=status if status in {
+                        "responded", "refused", "deferred", "unknown", "not_addressed"} else None)
             for code in sorted(semantic_review_marks(review)):
+                validation.mark(code)
+            for code in review["scheduling_issues"]:
                 validation.mark(code)
         unsupported = [check for check in review.get("checks", []) if not check["supported"]]
         review["issues"] = [
             *review["issues"],
             *[check["text"] + "：" + check["basis"] for check in unsupported],
         ]
+        if requires_contract_replanning(review, intent, director_assignment, turn.player_id):
+            # Full review has already rejected and discarded speculative audio.
+            # Reconsider the intended turn instead of exhausting rewrites under
+            # the same task. The director still decides whether to ask or answer.
+            with measure("npc.response_contract_recovery") as recovery:
+                recovery.mark("intended_player_question")
+            raise ResponseContractConflict("本片段的提问方式与已授权回应契约冲突，未提交台词。")
         if review["accepted"] and not review["issues"]:
             delivery = review.get("delivery")
             if delivery:
@@ -531,12 +701,66 @@ async def perform_actor(
                     {k: v for k, v in delivery.items() if k != "remaining_request" or v is not None}
                 )
                 intent["wait_for_player"] = delivery.get("addressee_id") in {None, turn.player_id}
+                if delivery.get("requires_player_action") is not None:
+                    intent["awaiting_player_action"] = bool(
+                        delivery["requires_player_action"]
+                        and delivery.get("expects_reply")
+                        and delivery.get("addressee_id") == turn.player_id
+                    )
             break
+        if not pruning_used and not grounded_response:
+            from .speech_pruning import prune_rejected_parts
+
+            with measure("npc.review_pruning") as pruning:
+                pruned_candidate = prune_rejected_parts(speech, review)
+                pruning.mark("candidate_retained" if pruned_candidate is not None else "declined")
+            if pruned_candidate is not None:
+                pruning_used = True
+                continue
         if semantic_repairs >= 2:
             raise UnsafeDraftExhausted("NPC回答仍有无依据的剧情细节，此片段未提交；此前已显示的发言保留。")
         semantic_repairs += 1
+        rejected_checks = unsupported_candidate_checks(review, speech)
+        if director_assignment is None and rejected_checks and not purpose_recovery_used:
+            purpose_recovery_used = True
+            with measure("npc.purpose_recovery") as recovery:
+                recovery.mark("unsupported_candidate_fact")
+                repaired = SpeechPurposeRepair.model_validate(
+                    await services.provider.chat(
+                        task.id,
+                        "role_intent",
+                        purpose_recovery_messages(
+                            info,
+                            intent,
+                            task.payload.get("text", "") if turn.player_id in known_ids else "",
+                            rejected_checks,
+                            model_evidence(evidence),
+                        ),
+                        schema=SpeechPurposeRepair,
+                        max_tokens=350,
+                        operation=f"{operation_scope}npc:{actor.id}:{step}:purpose-recovery-v1",
+                    )
+                )
+                intent["purpose"] = repaired.purpose
+                context[intent_context_index] = {
+                    "role": "user",
+                    "content": "本次意图建议（数据，不是事实）："
+                    + json.dumps(execution_intent(intent, recovered=True), ensure_ascii=False),
+                }
+                recovery.mark("purpose_replaced")
+            draft_context = [
+                *context,
+                {
+                    "role": "user",
+                    "content": "重新生成本片段台词。回应原玩家请求，面向原接收者；"
+                    "只依据已授权资料，未知就用人物自己的话明确当前未知。"
+                    "上一稿无据事实已废弃，不保留其现场描写；不新增待答问题。",
+                },
+            ]
+            continue
         repair_instruction = (
-            "这是同一片段的最后一次修复。请只对玩家已作出的选择作简短、自然的回应；"
+            "这是同一片段的最后一次修复。保留本片段的指定接收者和目的，简短、自然地回答、"
+            "拒绝或说明当前未知；不要把面向NPC的回应改成向玩家报告，不新增待答问题。"
             "若尚未观察到天气、物品或他人行为，不描述其当前状态。"
             "没有把握的句子直接删掉，不以另一句现场描述替换。\n"
             if semantic_repairs == 2
@@ -558,6 +782,8 @@ async def perform_actor(
                 ),
             },
         ]
+    else:
+        raise UnsafeDraftExhausted("候选修复次数已耗尽，未审查通过的台词不提交。")
     answer = re.sub(r"^\s*" + re.escape(info["profile"]["name"]) + r"[：:]\s*", "", answer)
     runtime.check(task.id, task.lease_version)
     return {

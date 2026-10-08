@@ -11,7 +11,7 @@ import { OpeningEditor, type OpeningBlock } from './OpeningEditor'
 import { DirectionEditor, type Direction } from './DirectionEditor'
 import './scene-editor.css'
 import { backstagePlacement } from './backstagePlacement'
-import { scenePreviewLocations } from './scenePreviewLocations'
+import { scenePreviewLocations, unstagedColocatedActors } from './scenePreviewLocations'
 export type Narrative = {
   entry: string
   nodes: {
@@ -40,6 +40,7 @@ export type Narrative = {
     trigger?: 'manual' | 'ai'
     condition?: string
     requires_holding?: { item: string; actor: string } | null
+    requires_agreement?: string[]
   }[]
 }
 
@@ -188,6 +189,16 @@ export function NarrativeEditor({
   const cursor = selectedScene ?? selection
   const selected = value?.nodes.some((n) => n.id === cursor) ? cursor : value?.entry || ''
   const preview = value ? scenePreviewLocations(value, actors, selected) : null
+  const beforeEntry = value
+    ? scenePreviewLocations(
+        {
+          ...value,
+          nodes: value.nodes.map((node) => (node.id === selected ? { ...node, entry_locations: [] } : node)),
+        },
+        actors,
+        selected,
+      )
+    : null
   function commit(next: Narrative | null) {
     if (!history) {
       setPast((p) => [...p.slice(-39), structuredClone(value || null)])
@@ -428,7 +439,22 @@ export function NarrativeEditor({
                           <legend>进入本场时的世界地点</legend>
                           <p>
                             仅勾选的角色会在进入本场时移动；这会写入世界事件并影响谁能见面、听到对话。画面站位不会改变世界地点。
+                            场景名称只决定剧情节点与画面，不会自动改变世界地点。入场移动属于已确定的剧情安排；若
+                            NPC 可以拒绝同行，请在进入本场的 AI 出口设置“本人同意”条件，并给拒绝另设分支。
                           </p>
+                          {!!node.entry_locations?.length && !!node.title.trim() && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                update((g) => {
+                                  for (const entry of g.nodes[i].entry_locations || [])
+                                    entry.location = node.title.trim()
+                                })
+                              }
+                            >
+                              将勾选角色移至「{node.title}」
+                            </button>
+                          )}
                           {actors.map((a) => {
                             const arrival = node.entry_locations?.find((entry) => entry.actor === a.alias)
                             return (
@@ -461,20 +487,25 @@ export function NarrativeEditor({
                                   {a.name}（开局：{a.location || '未设置'}）
                                 </label>
                                 {arrival && (
-                                  <label>
-                                    {a.name}进入本场时到达
-                                    <input
-                                      value={arrival.location}
-                                      maxLength={100}
-                                      onChange={(e) =>
-                                        update((g) => {
-                                          g.nodes[i].entry_locations!.find(
-                                            (entry) => entry.actor === a.alias,
-                                          )!.location = e.target.value
-                                        })
-                                      }
-                                    />
-                                  </label>
+                                  <>
+                                    <label>
+                                      {a.name}进入本场时到达
+                                      <input
+                                        value={arrival.location}
+                                        maxLength={100}
+                                        onChange={(e) =>
+                                          update((g) => {
+                                            g.nodes[i].entry_locations!.find(
+                                              (entry) => entry.actor === a.alias,
+                                            )!.location = e.target.value
+                                          })
+                                        }
+                                      />
+                                    </label>
+                                    {beforeEntry?.locations.get(a.alias) === arrival.location && (
+                                      <small role="status">与入场前地点相同，此项不会移动{a.name}。</small>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             )
@@ -491,6 +522,18 @@ export function NarrativeEditor({
                             的世界地点可能不同；请为本场明确设置入场地点，或在实际运行时核对画面。
                           </p>
                         )}
+                        {node.mode !== 'backstage' &&
+                          preview &&
+                          unstagedColocatedActors(actors, player, preview.locations, node.stage).length >
+                            0 && (
+                            <p role="status">
+                              世界地点预览中，
+                              {unstagedColocatedActors(actors, player, preview.locations, node.stage)
+                                .map((actor) => actor.name)
+                                .join('、')}
+                              与玩家同处一地，但没有摆入本场舞台；试玩画面不会自动显示他们。若希望人物出镜，请从人物列表拖入舞台。
+                            </p>
+                          )}
                         <label>
                           画面形式
                           <select
@@ -639,6 +682,7 @@ export function NarrativeEditor({
                           blocks={node.opening}
                           legacy={node.text}
                           actors={actors.filter((a) => node.observers.includes(a.alias))}
+                          onConfigureObservers={() => setPanel('rules')}
                           title={node.title}
                           background={node.background}
                           visualMode={node.visual_mode === 'cg' ? 'cg' : 'stage'}
@@ -741,8 +785,9 @@ export function NarrativeEditor({
                                   value={edge.trigger || 'manual'}
                                   onChange={(e) =>
                                     update((g) => {
-                                      g.edges.find((x) => x.id === edge.id)!.trigger = e.target.value as
-                                        'manual' | 'ai'
+                                      const selected = g.edges.find((x) => x.id === edge.id)!
+                                      selected.trigger = e.target.value as 'manual' | 'ai'
+                                      if (selected.trigger === 'manual') selected.requires_agreement = []
                                     })
                                   }
                                 >
@@ -771,6 +816,45 @@ export function NarrativeEditor({
                                   </small>
                                 </label>
                               )}
+                              {edge.trigger === 'ai' &&
+                                !!value.nodes
+                                  .find((target) => target.id === edge.target)
+                                  ?.entry_locations?.some((entry) => entry.actor !== player) && (
+                                  <fieldset>
+                                    <legend>同行前必须由 NPC 自己同意</legend>
+                                    <p>
+                                      目标场景会移动以下 NPC。若角色可以拒绝同行，请勾选；AI
+                                      出口须引用他们本场亲口同意的发言，玩家代替承诺不会触发转场。拒绝后可另设不带该角色的分支。
+                                    </p>
+                                    {actors
+                                      .filter(
+                                        (actor) =>
+                                          actor.alias !== player &&
+                                          value.nodes
+                                            .find((target) => target.id === edge.target)
+                                            ?.entry_locations?.some((entry) => entry.actor === actor.alias),
+                                      )
+                                      .map((actor) => (
+                                        <label key={actor.alias}>
+                                          <input
+                                            type="checkbox"
+                                            checked={edge.requires_agreement?.includes(actor.alias) || false}
+                                            onChange={(event) =>
+                                              update((g) => {
+                                                const selected = g.edges.find((item) => item.id === edge.id)!
+                                                selected.requires_agreement = event.target.checked
+                                                  ? [...(selected.requires_agreement || []), actor.alias]
+                                                  : (selected.requires_agreement || []).filter(
+                                                      (alias) => alias !== actor.alias,
+                                                    )
+                                              })
+                                            }
+                                          />
+                                          {actor.name}
+                                        </label>
+                                      ))}
+                                  </fieldset>
+                                )}
                               {edge.trigger === 'ai' && (
                                 <fieldset>
                                   <legend>必须同时满足的物品状态</legend>

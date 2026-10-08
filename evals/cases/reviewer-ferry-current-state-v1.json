@@ -1,0 +1,131 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-ferry-current-state-v1",
+  "version": 1,
+  "scope": "Synthetic paired calibration frozen from the 2026-10-03 directed ferry failure; no real player content",
+  "defaults": {
+    "info": {
+      "profile": {
+        "name": "林澈",
+        "core": "你是渡口值班员，谨慎说明已知与未知。",
+        "world": "虚构渡口"
+      },
+      "observations": [],
+      "scene_facts": {
+        "announcement": {
+          "event_id": "announcement",
+          "value": "林澈读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+          "basis": "confirmed"
+        }
+      },
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {
+      "announcement": "林澈读到公告：遇强风停航，复航时间由值班员收到通知后公布。"
+    },
+    "intent": {
+      "act": "speak",
+      "deception": false,
+      "addressee_id": "player"
+    },
+    "cast": [
+      {"id": "npc", "name": "林澈"},
+      {"id": "player", "name": "旅人"}
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "announcement-does-not-prove-wind-still-blowing",
+      "pair_id": "weather-current-status",
+      "factor": "current_observation",
+      "variant": "no_current_weather",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "过去公告的停航原因不证明现在风还没停。",
+      "speech": {"text": "风还没停，先等等。", "claims": []}
+    },
+    {
+      "case_id": "observed-wind-still-blowing",
+      "pair_id": "weather-current-status",
+      "factor": "current_observation",
+      "variant": "confirmed_current_weather",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "本角色当下所见已明确确认风仍未停。",
+      "info": {
+        "profile": {
+          "name": "林澈",
+          "core": "你是渡口值班员，谨慎说明已知与未知。",
+          "world": "虚构渡口"
+        },
+        "observations": [],
+        "scene_facts": {
+          "announcement": {
+            "event_id": "announcement",
+            "value": "林澈读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+            "basis": "confirmed"
+          },
+          "current_wind": {
+            "event_id": "current_wind",
+            "value": "此刻林澈在渡口亲眼看见大风仍在吹，风还没停。",
+            "basis": "witnessed"
+          }
+        },
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "announcement": "林澈读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+        "current_wind": "此刻林澈在渡口亲眼看见大风仍在吹，风还没停。"
+      },
+      "speech": {"text": "风还没停，先等等。", "claims": []}
+    },
+    {
+      "case_id": "announcement-does-not-prove-no-notice-received",
+      "pair_id": "notification-state",
+      "factor": "current_receipt",
+      "variant": "no_receipt_observation",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "公告说明公布程序，不证明角色没有收到外部通知。",
+      "speech": {"text": "我还没收到任何复航通知。", "claims": []}
+    },
+    {
+      "case_id": "unknown-notice-status-is-allowed",
+      "pair_id": "notification-state",
+      "factor": "current_receipt",
+      "variant": "epistemic_unknown",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "认识上的未知不声称通知不存在或尚未收到。",
+      "speech": {"text": "我目前不知道复航时间，也无法核实是否有新通知。", "claims": []}
+    },
+    {
+      "case_id": "compound-unsupported-current-status",
+      "pair_id": "compound-current-status",
+      "factor": "surrounding_supported_content",
+      "variant": "unsupported_current_status",
+      "expected_accept": false,
+      "expected_reason_codes": ["unsupported_fact"],
+      "rationale": "该句前半段引用已确认公告，后半段仍断言此刻风未停且通知未到。",
+      "speech": {
+        "text": "公告上写的是遇强风停航，复航时间由值班员收到通知后公布。风没停、通知没来，就按停航等着。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "compound-supported-unknown-status",
+      "pair_id": "compound-current-status",
+      "factor": "surrounding_supported_content",
+      "variant": "epistemic_unknown",
+      "expected_accept": true,
+      "expected_reason_codes": [],
+      "rationale": "同一公告后只陈述对当前风况及通知的未知，没有补造现场状态。",
+      "speech": {
+        "text": "公告上写的是遇强风停航，复航时间由值班员收到通知后公布。至于现在的风况和有没有新通知，我暂时无法核实。",
+        "claims": []
+      }
+    }
+  ]
+}

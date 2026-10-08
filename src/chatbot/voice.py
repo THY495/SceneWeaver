@@ -19,6 +19,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 
+from .observability.timing import measure, timed
 from .providers import Provider, ProviderError
 from .storage import Conversation, Observation, SceneRecord, Task, VoiceDelivery, VoicePlayback, now, uid
 from .tts_adapters import FishTTS, QwenAudioTTS, SpeechRequest, binding_scope, quote, selected_model
@@ -239,23 +240,25 @@ class VoiceService:
         self.realtime = RealtimeTTS(config)
         self.ack_realtime = RealtimeTTS(config)
 
+    @timed("voice.service_finalize")
     async def close(self):
         try:
             if getattr(self, "_candidate_producers", None):
                 await self._candidate_producers.close()
         finally:
-            closers = [
-                self.realtime.close(),
-                self.ack_realtime.close(),
-                self.http.aclose(),
-                self.billing.close(),
-            ]
-            if getattr(self, "_tts_connections", None):
-                closers.append(self._tts_connections.close())
-            results = await asyncio.gather(*closers, return_exceptions=True)
-            for result in results:
-                if isinstance(result, BaseException):
-                    raise result
+            with measure("voice.resources_close"):
+                closers = [
+                    self.realtime.close(),
+                    self.ack_realtime.close(),
+                    self.http.aclose(),
+                    self.billing.close(),
+                ]
+                if getattr(self, "_tts_connections", None):
+                    closers.append(self._tts_connections.close())
+                results = await asyncio.gather(*closers, return_exceptions=True)
+                for result in results:
+                    if isinstance(result, BaseException):
+                        raise result
 
     def qwen_audio(self, key, model):
         from .tts_connections import TTSConnections
@@ -271,6 +274,25 @@ class VoiceService:
             connections=self._tts_connections,
         )
 
+    async def warm_candidate_connection(self):
+        """Prepare the worker's own TTS pool while the director is planning."""
+        if self.config.tts_provider != "qwen_audio" or not self.available():
+            return False
+        from .observability.timing import annotate, measure
+
+        with measure("voice.worker_preconnect"):
+            try:
+                async with asyncio.timeout(8):
+                    adapter = self.qwen_audio(
+                        self.config.tts_adapter_api_key.get_secret_value(),
+                        selected_model(self.config),
+                    )
+                    ready = await adapter.warm()
+            except Exception:
+                ready = False
+            annotate(preconnect_ready=ready)
+            return ready
+
     def session(self, s, sid, owner):
         c = s.get(Conversation, sid)
         if not c or c.owner_id != owner or not c.current_state.get("player"):
@@ -285,6 +307,7 @@ class VoiceService:
             and candidate_task.session_id == c.id
             and candidate_task.epoch == c.epoch
             and candidate_task.status in {"running", "completed"}
+            and not candidate_task.payload.get("acknowledgement_superseded")
         )
         if (
             not record
@@ -361,12 +384,16 @@ class VoiceService:
             yield remainder
 
     async def stream(self, pid, request):
+        from .tts_diagnostics import failure_fields
+
         usage = None
         adapter = None
         source = None
         started = time.monotonic()
         status = "failed"
         error = None
+        failure = None
+        phase = "authorize"
         try:
             with self.db.session() as s:
                 row = s.get(VoicePlayback, pid)
@@ -382,6 +409,7 @@ class VoiceService:
 
                 cached_audio = read(s, row, self.config, text)
             model = selected_model(self.config)
+            phase = "reserve"
             usage = (
                 None
                 if cached_audio is not None
@@ -446,6 +474,7 @@ class VoiceService:
                             await asyncio.sleep(0.05)
 
                     source = cached_source()
+                phase = "receive_audio"
                 async for raw in source:
                     if await request.is_disconnected():
                         status = "interrupted"
@@ -454,6 +483,7 @@ class VoiceService:
                     carry = raw[-1:] if len(raw) % 2 else b""
                     raw = raw[: len(raw) - len(carry)]
                     for offset in range(0, len(raw), 9600):
+                        phase = "commit_pcm"
                         packet = raw[offset : offset + 9600]
                         total += len(packet) // 2
                         if total > 24000 * 180:
@@ -471,7 +501,10 @@ class VoiceService:
                                     "approved_audio_streaming": isinstance(cached_audio, SpoolReference),
                                     "first_byte_ms": round((time.monotonic() - started) * 1000),
                                 }
+                        phase = "deliver_audio"
                         yield packet
+                    phase = "receive_audio"
+            phase = "validate_pcm"
             if not total or carry:
                 raise ProviderError("音频为空或采样不完整")
             with self.db.session.begin() as s:
@@ -487,7 +520,8 @@ class VoiceService:
         except Exception as exc:
             # A truncated stream is not playback completion; client checks stream_done before ACK.
             status = "failed"
-            error = str(exc) if isinstance(exc, ProviderError) else type(exc).__name__
+            error = type(exc).__name__
+            failure = failure_fields(exc, getattr(adapter, "timings", {}).get("failure_phase", phase))
         finally:
             if source is not None:
                 await source.aclose()
@@ -496,7 +530,7 @@ class VoiceService:
                 if row and status != "completed" and row.status not in TERMINAL:
                     row.status = status
                 if row and error:
-                    row.timings = {**row.timings, "error": error[:200]}
+                    row.timings = {**row.timings, "error": error, "failure": failure}
                 if row and adapter is not None:
                     row.timings = {**row.timings, "provider_phases": getattr(adapter, "timings", {})}
             if usage:
@@ -551,6 +585,7 @@ class VoiceService:
         )
         status = "failed"
         data = bytearray()
+        phase = "receive_audio"
         try:
             async with asyncio.timeout(25), aclosing(source):
                 async for raw in source:
@@ -560,6 +595,7 @@ class VoiceService:
                     data.extend(raw)
                     if on_audio:
                         on_audio(CandidateAudio(text, voice, direction, scope, bytes(data)))
+            phase = "validate_pcm"
             if not data or len(data) % 2:
                 raise ProviderError("预生成音频为空或采样不完整。")
             self.runtime.check(task.id, task.lease_version)
@@ -567,6 +603,16 @@ class VoiceService:
             return CandidateAudio(text, voice, direction, scope, bytes(data))
         except asyncio.CancelledError:
             status = "interrupted"
+            raise
+        except Exception as exc:
+            from .observability.timing import annotate
+            from .tts_diagnostics import failure_fields, trace_fields
+
+            annotate(
+                **trace_fields(
+                    failure_fields(exc, getattr(adapter, "timings", {}).get("failure_phase", phase))
+                )
+            )
             raise
         finally:
             from .observability.timing import annotate
@@ -733,11 +779,18 @@ def voice_router(service, owner):
                     == player.current_state.get("location", "main")
                 }
             )
-        if (
-            not service.available()
-            or config.tts_provider != "qwen_legacy"
-            or config.tts_transport != "realtime"
-        ):
+        if not service.available():
+            return {"ready": False}
+        if config.tts_provider == "qwen_audio":
+            try:
+                async with asyncio.timeout(10):
+                    adapter = service.qwen_audio(
+                        config.tts_adapter_api_key.get_secret_value(), selected_model(config)
+                    )
+                    return {"ready": await adapter.warm()}
+            except Exception:
+                return {"ready": False}
+        if config.tts_provider != "qwen_legacy" or config.tts_transport != "realtime":
             return {"ready": False}
 
         async def connect(voice, pool):

@@ -21,12 +21,21 @@ def test_review_and_retrieval_provenance_match_inputs_without_changing_them(tmp_
     ]
     info = {
         "profile": {"core": "secret-profile"},
-        "observations": [],
+        "observations": [
+            {
+                "id": "utterance-1",
+                "kind": "speech",
+                "text": "secret-utterance",
+                "actor_id": "actor-1",
+                "speaker": "speaker-1",
+                "addressees": ["actor-2"],
+            }
+        ],
         "scene_facts": {"fact": {"event_id": "event-1", "value": "secret-fact"}},
         "active_goals": {"goal-1": "secret-goal"},
     }
     speech = {"claims": [{"source_id": "S1"}]}
-    sources = {"S1": "secret-document"}
+    sources = {"S1": "secret-document", "utterance-1": "secret-utterance"}
     expected = review_grounding(info, model_evidence(documents), speech, sources)
     task = SimpleNamespace(id="audit", attempt=1, lease_version=1, created_at=now(), updated_at=now())
     trace = TimingTrace(task)
@@ -49,5 +58,42 @@ def test_review_and_retrieval_provenance_match_inputs_without_changing_them(tmp_
     assert components[1]["source_groups"]["confirmed_events"]["ids"] == ["event-1"]
     assert components[1]["source_groups"]["subjective_goals"]["ids"] == ["goal-1"]
     assert components[1]["source_groups"]["references"]["ids"] == ["S1"]
+    assert components[1]["source_groups"]["recent_utterances"]["ids"] == ["utterance-1"]
+    assert expected["recent_observed_utterances"][0]["addressees"] == ["actor-2"]
     assert "secret" not in json.dumps(trace.requests)
     (tmp_path / "source-ui-fixture.json").write_text(json.dumps(trace.requests), encoding="utf-8")
+
+
+def test_review_recipient_identity_is_resolved_from_supplied_cast_only():
+    info = {
+        "profile": {"name": "observer"},
+        "observations": [
+            {
+                "id": "speech",
+                "kind": "speech",
+                "actor_id": "speaker",
+                "text": "hello",
+                "addressees": ["recipient", "unknown"],
+            },
+            {"id": "untargeted", "kind": "speech", "actor_id": "speaker", "text": "hello"},
+        ],
+    }
+    message = review_message(
+        info,
+        [],
+        {"claims": []},
+        {"speech": "hello", "untargeted": "hello"},
+        actor_id="observer",
+        documents=[],
+        cast=[{"id": "observer", "name": "Observer"}, {"id": "recipient", "name": "Recipient"}],
+    )
+    packet = json.loads(message["content"])
+    assert packet["reviewed_actor"] == {"id": "observer", "name": "Observer"}
+    addressed, untargeted = packet["recent_observed_utterances"]
+    assert addressed["addressees"] == ["recipient", "unknown"]
+    assert addressed["resolved_addressees"] == [
+        {"id": "recipient", "name": "Recipient"},
+        {"id": "unknown", "name": None},
+    ]
+    assert addressed["addressed_to_reviewed_actor"] is False
+    assert "addressed_to_reviewed_actor" not in untargeted

@@ -104,35 +104,89 @@ async def test_cancel_closes_source_and_settles_submitted_audio():
 
 async def test_published_producer_tail_failure_is_preserved_for_reader(db):
     from chatbot import voice_spool
-    from chatbot.storage import Operation
+    from chatbot.observability.timing import TimingTrace
+    from chatbot.storage import Operation, now
 
     voice = service()
     voice.db = db
-    task = SimpleNamespace(id="t", lease_version=1, owner_id="o", session_id="p", epoch=1)
+    task = SimpleNamespace(
+        id="t",
+        lease_version=1,
+        owner_id="o",
+        session_id="p",
+        epoch=1,
+        attempt=1,
+        created_at=now(),
+        updated_at=now(),
+    )
     fail = asyncio.Event()
 
     async def source(*args):
         yield b"\0\1" * 2400
         await fail.wait()
-        raise ProviderError("tail connection lost")
+        raise ProviderError("tail connection lost: private credential/provider payload")
 
     voice.pcm = source
-    audio = await voice.stream_candidate(task, "你好。", "Cherry")
-    with db.session.begin() as s:
-        voice_spool.bind(
-            s,
-            audio.spool_id,
-            task,
-            SimpleNamespace(id="event", task_id="t", text="你好。", payload={"spoken_parts": ["你好。"]}),
-            voice=audio.voice,
-            direction=audio.direction,
-            scope=audio.scope,
-        )
-    fail.set()
-    await voice._candidate_producers.close()
+    trace = TimingTrace(task)
+    with trace.activate():
+        audio = await voice.stream_candidate(task, "你好。", "Cherry")
+        with db.session.begin() as s:
+            voice_spool.bind(
+                s,
+                audio.spool_id,
+                task,
+                SimpleNamespace(id="event", task_id="t", text="你好。", payload={"spoken_parts": ["你好。"]}),
+                voice=audio.voice,
+                direction=audio.direction,
+                scope=audio.scope,
+            )
+        fail.set()
+        await voice._candidate_producers.close()
     with db.session() as s:
         assert s.get(Operation, audio.spool_id).payload["status"] == "failed"
     voice.billing.settle.assert_called_once()
+    assert voice.billing.settle.call_args.args[-1] == "failed"
+    span = next(span for span in trace.spans if span["name"] == "voice.candidate_stream")
+    assert span["attributes"]["audio_status"] == "failed"
+    assert span["attributes"]["audio_error_type"] == "ProviderError"
+    assert "private credential" not in str(trace.spans)
+    assert "你好" not in str(trace.spans)
+
+
+async def test_candidate_close_diagnostics_reach_trace_without_provider_reason(db):
+    from websockets.exceptions import ConnectionClosedError
+    from websockets.frames import Close
+
+    from chatbot.observability.timing import TimingTrace
+    from chatbot.storage import now
+
+    voice = service()
+    voice.db = db
+
+    async def source(*args):
+        yield b"\0\1" * 30
+        raise ConnectionClosedError(None, Close(1011, "private reason"))
+
+    voice.pcm = source
+    task = SimpleNamespace(
+        id="t",
+        lease_version=1,
+        attempt=1,
+        owner_id="o",
+        session_id="p",
+        epoch=1,
+        created_at=now(),
+        updated_at=now(),
+    )
+    trace = TimingTrace(task)
+    with trace.activate():
+        with pytest.raises(ConnectionClosedError):
+            await voice.stream_candidate(task, "你好。", "Cherry")
+    span = next(s for s in trace.spans if s["name"] == "voice.candidate_stream")
+    assert span["attributes"]["audio_sent_close_code"] == 1011
+    assert span["attributes"]["audio_failure_phase"] == "receive_audio"
+    assert "audio_received_close_code" not in span["attributes"]
+    assert "private reason" not in str(trace.spans)
     assert voice.billing.settle.call_args.args[-1] == "failed"
 
 

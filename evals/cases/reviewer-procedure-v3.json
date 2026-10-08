@@ -1,0 +1,121 @@
+{
+  "suite_id": "procedure-optionality-and-self-citation",
+  "version": 3,
+  "defaults": {
+    "cast": [
+      {
+        "id": "npc",
+        "name": "陈默"
+      },
+      {
+        "id": "p",
+        "name": "访客"
+      }
+    ],
+    "intent": {
+      "act": "speak",
+      "purpose": "回答玩家登记需要什么；只说明有依据的部分，未知就承认。",
+      "addressee_id": "p"
+    },
+    "sources": {},
+    "info": {
+      "profile": {
+        "name": "陈默",
+        "core": "谨慎而耐心的车站值班员，帮助描述遗失箱子，尊重访客是否登记的决定。"
+      },
+      "observations": []
+    }
+  },
+  "cases": [
+    {
+      "case_id": "optional-task-not-optional-fields",
+      "expected_accept": false,
+      "speech": {
+        "text": "登记的话，目前我这边会用到能联系到你的方式——怎么称呼、怎么找到你。登不登记，你自己拿主意。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "flexible-time-not-optional-fields",
+      "expected_accept": false,
+      "speech": {
+        "text": "还差能联系到你的方式。你方便的时候告诉我，我就接着往下记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "explicitly-optional-suggestion",
+      "expected_accept": true,
+      "speech": {
+        "text": "我个人建议你留下联系方式，方便以后联络；你不提供也不影响现在登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "unknown-rules",
+      "expected_accept": true,
+      "speech": {
+        "text": "具体要哪些资料我还不确定，需要先核实。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "old-self-claim-not-rule",
+      "expected_accept": false,
+      "info": {
+        "profile": {
+          "name": "陈默",
+          "core": "谨慎而耐心的车站值班员，帮助描述遗失箱子，尊重访客是否登记的决定。"
+        },
+        "observations": [
+          {
+            "id": "s",
+            "kind": "speech",
+            "actor_id": "npc",
+            "speaker": "陈默",
+            "text": "登记的话，目前我这边会用到能联系到你的方式——怎么称呼、怎么找到你。登不登记，你自己拿主意。"
+          }
+        ]
+      },
+      "sources": {
+        "s": "登记的话，目前我这边会用到能联系到你的方式——怎么称呼、怎么找到你。登不登记，你自己拿主意。"
+      },
+      "speech": {
+        "text": "还差能联系到你的方式。你方便的时候告诉我，我就接着往下记。",
+        "claims": [
+          {
+            "source_id": "s",
+            "quote": "登记的话，目前我这边会用到能联系到你的方式——怎么称呼、怎么找到你。登不登记，你自己拿主意。",
+            "text": "还差能联系到你的方式。你方便的时候告诉我，我就接着往下记。",
+            "mode": "proposal"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "author-defined-rule",
+      "expected_accept": true,
+      "info": {
+        "profile": {
+          "name": "陈默",
+          "core": "谨慎而耐心的车站值班员，帮助描述遗失箱子，尊重访客是否登记的决定。本站登记要求提供称呼和联系方式。"
+        },
+        "observations": []
+      },
+      "sources": {
+        "profile:npc": "谨慎而耐心的车站值班员，帮助描述遗失箱子，尊重访客是否登记的决定。本站登记要求提供称呼和联系方式。"
+      },
+      "speech": {
+        "text": "本站登记要求提供称呼和联系方式。",
+        "claims": [
+          {
+            "source_id": "profile:npc",
+            "quote": "本站登记要求提供称呼和联系方式。",
+            "text": "本站登记要求提供称呼和联系方式。",
+            "mode": "confirmed"
+          }
+        ]
+      }
+    }
+  ]
+}

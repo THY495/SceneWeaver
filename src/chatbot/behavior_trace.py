@@ -17,6 +17,7 @@ from .storage import (
 
 def behavior_trace(s, task):
     routing = s.get(Operation, f"scene-routing-audit:{task.id}")
+    player_routing = s.get(Operation, f"scene-routing-audit:{task.id}:player-action")
     records = list(
         s.scalars(
             select(SceneRecord)
@@ -32,6 +33,12 @@ def behavior_trace(s, task):
     notifications = list(s.scalars(select(Event).where(Event.task_id == task.id).order_by(Event.id)))
     return {
         "scene_routing": routing.payload if routing else None,
+        "player_action_routing": player_routing.payload if player_routing else None,
+        "assignment_authorizations": [
+            {"operation_id": row.id, **row.payload}
+            for row in s.scalars(select(Operation).where(Operation.task_id == task.id))
+            if row.payload.get("assignment_authorization") == "grounded_response"
+        ],
         "timings": read_timings(s, task.id),
         "action_attempts": [
             {

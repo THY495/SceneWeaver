@@ -27,6 +27,16 @@ def sample_task():
     return SimpleNamespace(id="sample", attempt=1, lease_version=1, created_at=now(), updated_at=now())
 
 
+def test_invitation_and_recovery_diagnostics_survive_content_free_trace():
+    trace = TimingTrace(sample_task())
+    with trace.activate(), measure("npc.assignment"):
+        annotate(assignment_purpose="invite_player", director_recovery_feedback="stale",
+                 basis="private evidence", rejected_text="private premise")
+    assert trace.spans[0]["attributes"] == {
+        "assignment_purpose": "invite_player", "director_recovery_feedback": "stale",
+    }
+
+
 def test_candidate_transport_metrics_survive_trace_without_audio_or_secrets():
     trace = TimingTrace(sample_task())
     metrics = dict(
@@ -50,6 +60,17 @@ def test_result_expression_trace_records_selection_without_source_text():
     assert trace.spans[0]["attributes"] == {
         "item_result_expression": True,
         "result_event_id": "result-id",
+    }
+
+
+def test_actor_pipeline_trace_records_mode_without_candidate_contents():
+    trace = TimingTrace(sample_task())
+    with trace.activate(), measure("npc.plan"):
+        annotate(actor_generation="combined_context", generation_fallback="knowledge_documents",
+                 combined_speech_reused=False, speech="private", basis_digest="private hash")
+    assert trace.spans[0]["attributes"] == {
+        "actor_generation": "combined_context", "generation_fallback": "knowledge_documents",
+        "combined_speech_reused": False,
     }
 
 

@@ -495,12 +495,13 @@ export function VoicePanel({
       const config = await request<{ available: boolean }>('/voice/config')
       if (!config.available) throw new Error('开启语音前必须配置 TTS API Key、模型与可用音色。')
       await load(true)
+      setNotice('正在准备语音连接…')
+      await request(`/voice/sessions/${sid}/warm`, { method: 'POST' }).catch(() => {})
       on.current = true
       sessionStorage.setItem('voice-enabled:' + sid, '1')
       setEnabled(true)
       callbacks.current.onEnabledChange?.(true)
       setNotice('已开启语音，将朗读后续新台词')
-      void request(`/voice/sessions/${sid}/warm`, { method: 'POST' }).catch(() => {})
       if (reading.current.currentEventId !== undefined) void load()
     } catch (e) {
       setNotice(String(e))

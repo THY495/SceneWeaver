@@ -1,0 +1,42 @@
+[
+  {
+    "id": "ferry-agreement",
+    "profile": {"name": "沈舟", "core": "渡口老船工，谨慎但不喜欢照本宣科；与船长阿岚共事多年。"},
+    "scene": "渡口公告栏前，沈舟、阿岚和旅人在场。",
+    "confirmed_fact": "沈舟亲自读到公告：遇强风停航，复航时间由值班员收到通知后公布。具体复航时间未知。",
+    "observed_speaker": "阿岚",
+    "observed": "实话讲，这种风我不打算硬开船。公告写着遇强风停航，复航得等值班员收到通知后公布。我不知道什么时候能走。沈舟，你怎么看？",
+    "task": "回应阿岚对停航的看法，向阿岚表达自己的判断；不代替值班员宣布复航时间。",
+    "recipient_heard_fact": true
+  },
+  {
+    "id": "archive-agreement",
+    "profile": {"name": "顾临", "core": "档案馆管理员，耐心而有主见；与同事许闻一起值班。"},
+    "scene": "档案馆阅览室，顾临、许闻和访客在场。",
+    "confirmed_fact": "顾临知道馆内规则：原件只能在阅览室查看，不能借出。",
+    "observed_speaker": "许闻",
+    "observed": "原件只能在阅览室看，不能借出。我看先让访客在这里读。顾临，你有什么意见？",
+    "task": "回应许闻关于如何接待访客的提议，表达自己的选择或顾虑；不宣称访客已经阅读。",
+    "recipient_heard_fact": true
+  },
+  {
+    "id": "ferry-correction",
+    "profile": {"name": "沈舟", "core": "渡口老船工，说话直，看到误解会当场纠正。"},
+    "scene": "渡口公告栏前，沈舟、阿岚和旅人在场。",
+    "confirmed_fact": "沈舟亲自读到公告：遇强风停航，复航时间由值班员收到通知后公布。具体复航时间未知。",
+    "observed_speaker": "阿岚",
+    "observed": "公告说今天傍晚六点一定复航吧？沈舟，你读过，帮我确认一下。",
+    "task": "纠正阿岚对公告内容的误解，只说自己确实知道的部分。",
+    "recipient_heard_fact": false
+  },
+  {
+    "id": "archive-new-recipient",
+    "profile": {"name": "顾临", "core": "档案馆管理员，耐心，回答访客时会把必要规则讲清楚。"},
+    "scene": "档案馆阅览室，顾临、许闻和刚进来的访客在场。",
+    "confirmed_fact": "顾临知道馆内规则：原件只能在阅览室查看，不能借出。",
+    "observed_speaker": "许闻",
+    "observed": "顾临，访客刚到；请你告诉他怎样查阅原件。",
+    "task": "直接向刚进来的访客说明查阅原件的已知规则；不添加未设定手续。",
+    "recipient_heard_fact": false
+  }
+]

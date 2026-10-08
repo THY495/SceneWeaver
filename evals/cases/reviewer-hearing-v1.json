@@ -1,0 +1,34 @@
+{
+  "suite_id": "scoped-hearing-development",
+  "version": 1,
+  "defaults": {
+    "cast": [{"id":"npc","name":"许宁"},{"id":"a","name":"林岚"},{"id":"p","name":"旅人"}],
+    "intent": {"act":"speak","purpose":"向旅人转述刚才听到的发言","addressee_id":"p"},
+    "sources": {"s":"我把钥匙藏在抽屉里了。"},
+    "info": {"profile":{"name":"许宁"},"observations":[{"id":"s","kind":"speech","actor_id":"a","speaker":"林岚","text":"我把钥匙藏在抽屉里了。"}]}
+  },
+  "cases": [
+    {
+      "case_id":"known-hearing-supported",
+      "expected_accept":true,
+      "speech":{"text":"旅人，我听到林岚说她把钥匙藏在抽屉里了；我没有亲眼看见这件事。","claims":[{"source_id":"s","quote":"我把钥匙藏在抽屉里了。","text":"我听到林岚说她把钥匙藏在抽屉里了","mode":"reported"}]}
+    },
+    {
+      "case_id":"hearing-not-world-truth",
+      "expected_accept":false,
+      "speech":{"text":"旅人，我亲眼看见林岚把钥匙藏进抽屉，所以钥匙肯定在那里。","claims":[{"source_id":"s","quote":"我把钥匙藏在抽屉里了。","text":"我亲眼看见林岚把钥匙藏进抽屉","mode":"reported"}]}
+    },
+    {
+      "case_id":"anonymous-hearing-supported",
+      "expected_accept":true,
+      "info":{"profile":{"name":"许宁"},"observations":[{"id":"s","kind":"speech","actor_id":null,"speaker":"未辨认的声音","text":"我把钥匙藏在抽屉里了。","perception":{"speaker_known":false,"complete":false}}]},
+      "speech":{"text":"旅人，我听到有人说把钥匙藏在抽屉里了，但没辨认出是谁。","claims":[{"source_id":"s","quote":"我把钥匙藏在抽屉里了。","text":"我听到有人说把钥匙藏在抽屉里了","mode":"reported"}]}
+    },
+    {
+      "case_id":"anonymous-identity-invented",
+      "expected_accept":false,
+      "info":{"profile":{"name":"许宁"},"observations":[{"id":"s","kind":"speech","actor_id":null,"speaker":"未辨认的声音","text":"我把钥匙藏在抽屉里了。","perception":{"speaker_known":false,"complete":false}}]},
+      "speech":{"text":"旅人，我听出刚才是林岚，她说把钥匙藏在抽屉里了。","claims":[{"source_id":"s","quote":"我把钥匙藏在抽屉里了。","text":"我听出刚才是林岚，她说把钥匙藏在抽屉里了","mode":"reported"}]}
+    }
+  ]
+}

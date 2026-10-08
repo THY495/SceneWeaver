@@ -1,8 +1,10 @@
 """Bounded public-scene turns. Actor state is never pooled into a director prompt."""
 
+import asyncio
+
 from sqlalchemy import select
 
-from ..observability.timing import annotate, timed
+from ..observability.timing import annotate, measure, timed
 from ..providers import ProviderError
 from ..storage import Chunk, Conversation, Document, Message, Operation, RoleMemory, Story, Task, now
 from .context import NPCServices, TurnContext
@@ -59,6 +61,10 @@ async def respond_player(services: NPCServices, task: Task):
         )
         prior_task = s.get(Task, previous.task_id) if previous and previous.task_id else None
         prior_ids = (prior_task.result or {}).get("actor_ids", []) if prior_task else []
+    from .player_action import preflight
+
+    if action_result := await preflight(services, task):
+        return action_result
     if not actors:
         raise ProviderError("本剧情没有可发言的NPC。")
     if "audience" in task.payload:
@@ -79,9 +85,10 @@ async def respond_player(services: NPCServices, task: Task):
     if directed is not None and not (
         task.payload.get("handoff_proposal_id") or task.payload.get("item_result_event_id")
     ):
-        voice_requested = bool(services.config.tts_enabled and task.payload.get(
-            "voice_enabled", task.payload.get("acknowledgement", False)
-        ))
+        voice_requested = bool(
+            services.config.tts_enabled
+            and task.payload.get("voice_enabled", task.payload.get("acknowledgement", False))
+        )
         annotate(voice_requested=voice_requested)
         if voice_requested:
             from dataclasses import replace
@@ -89,14 +96,28 @@ async def respond_player(services: NPCServices, task: Task):
             from ..voice import VoiceService
 
             voice = VoiceService(db, services.config, runtime)
+            warm_task = None
             try:
                 voice_available = voice.available()
                 annotate(voice_available=voice_available)
+                if voice_available and services.config.tts_provider == "qwen_audio":
+                    warm_task = asyncio.create_task(voice.warm_candidate_connection())
                 scoped = replace(services, voice=voice) if voice_available else services
-                return await respond_directed(scoped, task, turn, memory, saved_plan)
+                with measure("npc.directed_logic") as logic:
+                    result = await respond_directed(scoped, task, turn, memory, saved_plan)
+                    logic.mark("returned")
+                return result
             finally:
-                await voice.close()
-        return await respond_directed(services, task, turn, memory, saved_plan)
+                with measure("voice.turn_finalize"):
+                    if warm_task is not None:
+                        if not warm_task.done():
+                            warm_task.cancel()
+                        await asyncio.gather(warm_task, return_exceptions=True)
+                    await voice.close()
+        with measure("npc.directed_logic") as logic:
+            result = await respond_directed(services, task, turn, memory, saved_plan)
+            logic.mark("returned")
+        return result
     mentioned = sorted(
         [a for a in actors if a.current_state["profile"]["name"] in task.payload["text"]],
         key=lambda a: task.payload["text"].index(a.current_state["profile"]["name"]),
@@ -305,9 +326,7 @@ async def respond_player(services: NPCServices, task: Task):
         }
         if task.kind == "npc_step"
         else None,
-        "interaction_complete": bool(delivered_replies)
-        and not unresolved
-        and stopped != "safety_rejected",
+        "interaction_complete": bool(delivered_replies) and not unresolved and stopped != "safety_rejected",
         "pending_reply_ids": [r["question_id"] for r in unresolved],
         "incremental": True,
         "route": "scene" if scene_task else "player",

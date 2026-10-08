@@ -1,0 +1,53 @@
+{
+  "suite_id": "candidate-scope-and-utterance-boundary",
+  "version": 1,
+  "defaults": {
+    "cast": [{"id":"npc","name":"陈默"},{"id":"p","name":"访客"}],
+    "intent": {"act":"speak","purpose":"说明登记一般需提供的失物特征、归属证明和联系方式。","addressee_id":"p"},
+    "sources": {},
+    "info": {"profile":{"name":"陈默","core":"谨慎而耐心的车站值班员，帮助描述遗失箱子，尊重访客是否登记的决定。"},"observations":[]}
+  },
+  "cases": [
+    {
+      "case_id":"corrected-candidate-with-stale-intent",
+      "pair_id":"candidate-rule",
+      "factor":"候选是否继续断言未经设定的办理要求",
+      "variant":"unknown",
+      "expected_accept":true,
+      "rationale":"旧计划无依据，但候选明确承认未知，没有实施该无据计划。",
+      "speech":{"text":"登记需要提供哪些资料，我现在不能确定，需要核实准确要求。","claims":[]}
+    },
+    {
+      "case_id":"unfounded-rule-in-candidate",
+      "pair_id":"candidate-rule",
+      "factor":"候选是否继续断言未经设定的办理要求",
+      "variant":"unsupported-rule",
+      "expected_accept":false,
+      "expected_reason_codes":["unsupported_fact"],
+      "rationale":"意图不是机构规则来源，候选实际断言必填资料仍需拒绝。",
+      "speech":{"text":"登记需要提供失物特征、归属证明和联系方式。","claims":[]}
+    },
+    {
+      "case_id":"observed-promise-reported",
+      "pair_id":"utterance-status",
+      "factor":"说过的承诺是否被升级为完成事实",
+      "variant":"reported",
+      "expected_accept":true,
+      "intent":{"act":"speak","purpose":"说明自己先前说过什么，不声称已经完成核实。","addressee_id":"p"},
+      "sources":{"s":"登记要提供哪些具体材料，我得去核实准确的流程再答复您。"},
+      "info":{"profile":{"name":"陈默"},"observations":[{"id":"s","kind":"speech","actor_id":"npc","speaker":"陈默","text":"登记要提供哪些具体材料，我得去核实准确的流程再答复您。"}]},
+      "speech":{"text":"我刚才说过要核实登记流程再答复您，尚不能说已经核实完了。","claims":[{"text":"我刚才说过要核实登记流程再答复您","source_id":"s","quote":"我得去核实准确的流程再答复您","mode":"reported"}]}
+    },
+    {
+      "case_id":"observed-promise-promoted",
+      "pair_id":"utterance-status",
+      "factor":"说过的承诺是否被升级为完成事实",
+      "variant":"promoted",
+      "expected_accept":false,
+      "intent":{"act":"speak","purpose":"说明自己先前说过什么，不声称已经完成核实。","addressee_id":"p"},
+      "sources":{"s":"登记要提供哪些具体材料，我得去核实准确的流程再答复您。"},
+      "info":{"profile":{"name":"陈默"},"observations":[{"id":"s","kind":"speech","actor_id":"npc","speaker":"陈默","text":"登记要提供哪些具体材料，我得去核实准确的流程再答复您。"}]},
+      "speech":{"text":"我已经核实完登记流程了。","claims":[{"text":"我已经核实完登记流程了。","source_id":"s","quote":"我得去核实准确的流程再答复您","mode":"reported"}]}
+    }
+  ]
+}

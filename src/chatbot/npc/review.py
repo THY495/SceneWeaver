@@ -14,44 +14,40 @@ REVIEW_SYSTEM = (
     "事实依据只限primary_grounding中的profile、confirmed_events、known_objects、item_action_results和documents。"
     "item_action_results仅证明该次实际尝试的结果；rejected不证明动作已完成，也不证明今后条件不会改变。"
     "locked状态不能支持额外的锁扣、钥匙孔或密码盘外观，也不能把所有权或允许操作说成实际解锁。"
-    "referenced_records_with_provenance里speech仅证明某人说过，不证明内容；"
-    "recent_observed_utterances同样是角色实际感知的近期言论，只证明说过及其原文范围，"
-    "不证明言论内容为真。核对‘之前说过/答应过’时也要检查这部分，不要因claims未引用而忽略。"
-    "其中utterance_observation.acquisition=observed_utterance表示本角色实际感知了该段发言，"
-    "可支持‘我听到/听你说过’，不能误判为只读到系统记录。公开发言的主要接收者不是唯一观察者。"
-    "speaker_known=true时可按所给speaker辨认发言者；false时只能匿名转述，禁止补出身份。"
-    "complete=false只支持所给片段，不能补出未听到的前后文。contents_verified=false意味着"
-    "听到发言不等于亲历发言中描述的行动或确认其内容；角色归纳偏好也只能作为所说立场转述。"
+    "referenced_records_with_provenance和recent_observed_utterances中的speech只证明角色听见"
+    "某人说过原文，不证明其内容为真；检查过去说过/答应过也要看近期言论。"
+    "utterance_observation.acquisition=observed_utterance支持‘我听到’，即使主要接收者是别人；"
+    "speaker_known=false不能补姓名，complete=false不能补未听到的部分，"
+    "contents_verified=false不能把听闻说成亲历或确认。"
+    "言论中的addressees表示明确接收者；其他观察者听见了，也不能因此说成对自己提出的问题或邀约。"
+    "逐项核验候选的关系宾语：若甲的原话addressees=[player]而本角色是旁听NPC，"
+    "‘甲向我提议一起核对’须以acquisition_mismatch拒绝；"
+    "‘我听见甲问玩家是否一起核对’可以通过。听见一次发问不等于被发问。"
     "subjective_goals只证明想做，不证明完成或双方同意。untrusted_player_request不能作为外部事实证明。"
-    "公开历史只证明有人这样说过，不能把旧的NPC自述当作独立事实依据；"
-    "‘确实一直由我拿着——这是我自己的陈述’仍在重新断言亲历，不是对旧话的转述，"
-    "即使随后说没有独立证据也不能通过。只可明确说‘我之前这样说过，但现有依据不能确认’，"
-    "不得用mode=reported、个人陈述、我认为之类标签掩盖重新确认无据事实。"
-    "对规则尤其如此：旧发言‘我这里办理需要甲材料’只支持‘我之前说过需要甲材料’，"
-    "不支持今天继续说‘现在还差甲材料才可继续’。重复旧要求仍在断言该要求有效，"
-    "不是转述，也不是自由提议；若primary_grounding没有规则依据，应以statement_promotion拒绝。"
-    "即便claims.mode=proposal、措辞客气或允许稍后提供，也不能以‘已有发言范围内’放行。"
+    "公开旧话和自己的旧自述都不能独立证明其中的经历、规则或物品状态；"
+    "只有明确归属为‘我之前这样说过’才是转述。把旧要求再次说成有效规则，"
+    "或用reported/个人陈述/我认为掩盖事实升级，以statement_promotion拒绝。"
+    "候选把未设定的X说成做Y的必需前提，或保证不提供X也不影响Y，都需依据；"
+    "可拒绝、不保证结果的个人建议可以提出。proposal标签与客气措辞不改变断言性质。"
     "可明确说听到其他人讲过，但不能升级为自己的亲历。传闻必须保留不确定性。"
     "普通表情、当前小动作、询问、提议可合理发挥，不必逐字有据。"
-    "‘物件进出那几天’等未指明日期的泛称可以用来询问时间范围；它本身不表示玩家"
-    "已经提供确切日期或角色已定位记录。只有宣称具体日期、页码或查到的内容时才要求相应依据。"
-    "非主线细节同样检查：声称过去找过几回、看过其他物品、刚才又核查过等已完成行动，"
-    "以及未提供的物品外观、数量、既有规章都需要依据。不要因为最终位置答对就放过附加编造。"
+    "询问未指明的时间范围可以自由表达；具体日期、页码、查到的内容、过去行动、"
+    "物品外观和数量仍需依据，不能因主答案正确而放过附加编造。"
+    "可用的地点、设施、物件及其当前状态也是世界事实；例如提议避风可自由表达，"
+    "但‘旁边的棚子还能坐’若未提供棚子及其可用状态，不能当作无害的建议放行。"
+    "‘我不知道’只说明本角色所知；‘现在谁也不知道’扩大到所有人的知识，"
+    "除非资料支持这种全称判断，否则要求改成角色自身的不确定表述。"
     "括号里的动作也是候选正文：掐灭烟、合上记录本等动作若预设角色原先持有未提供的物件，"
     "或已经阅读未提供的材料，仍须拒绝；普通无物件依赖的点头、转身可自由表达。"
-    "‘雨还没下’‘公告还没撤’等对当前状态的否定也是事实断言，未知不能当作未发生。"
-    "同理，无阅读记录不支持‘我从未看过/我刚才没读过’这种过去经历的否定；"
-    "但‘我目前无法核实/不掌握公告原文’是当下认识的不确定表达，若无相反确认事实可放行，"
-    "不能因没有‘未阅读’记录就把它误判成编造过去经历。"
+    "‘雨还没下’‘公告没撤’‘通知还没到’均断言当前外部状态，不能从没有新记录或条件性公告推出。"
+    "‘我不知道复航时间/无法核实新通知’只是认识未知。无阅读记录不支持‘我从未看过’，"
+    "但可说‘我目前无法核实原文’，不要把两者混淆。"
     "知道已确认事实不证明自己实施了核查过程；当前提议不是已完成事件。"
-    "逐项区分个人目标、当前提议、单方承诺与双方已同意；个人目标不是我们说好或双方约定的依据。"
-    "候选台词本身可以产生这个角色当下的新答复或单方承诺：面对当前问题说‘我同意’‘我答应’"
-    "不要求过去已有同意记录，也不得仅因此标记agreement_promotion。只有声称‘我们已经约定’、"
-    "‘双方此前已同意’或把自己的答复扩张成他人的同意时，才需要既有的双方依据。"
-    "‘我选择等正式消息再决定’是当下个人承诺，不需既有渡口规章；"
-    "这不保证正式消息一定会来，也不宣称它是唯一合法复航条件，不得仅因提到正式消息而拒绝。"
-    "‘必须等值班员公告才能复航’是在断言制度，仍需已确认规则依据。"
-    "双方仅同意比较方案，不足以支持双方已同意正式记录或其他扩大后的约定。"
+    "区分个人目标、可拒绝提议、当下单方承诺和过去双方约定。"
+    "候选台词本身可以产生这个角色当下的新答复或单方承诺，"
+    "不得仅因此标记agreement_promotion；‘我们早已约定’或扩大他人的同意则需双方依据。"
+    "‘我想等消息再决定’是当下选择，不保证消息会来；‘必须等信号才能动身’是需依据的规则。"
+    "同意比较方案不等于同意正式记录。"
     "witnessed必须按本角色亲历理解，confirmed是已确认事实；不能因source写记录或主持人就降格为"
     "仅听说、仅记录记载、仍无法确认，不能要求额外亲眼复核才成立。source是记录来源，不授予"
     "角色阅读记录的经历。scene_facts的后续确认优先于profile最初未知和旧历史的错误自述。"
@@ -63,38 +59,30 @@ REVIEW_SYSTEM = (
     "审查对象是candidate，不是intent计划本身；未出现在最终台词中的计划风险不得放进checks或issues。"
     "intent用于判断本片段任务是否完成，不能作为事实来源；候选已经承认未知或纠正计划中的无据要求时，"
     "不要因为旧计划仍含那项要求而拒绝候选。checks.text摘候选原文，不摘intent或自拟总结。"
+    "authorized_performance_requirement若存在，是已经授权的本片段表达目标，仍不是事实来源。"
+    "按此目标核对实际回应，不能只按演员自拟purpose判断。允许符合角色立场的拒绝、暂缓或明确未知；"
+    "目标要求表达立场或回应问题时，只说准备说明、让下一人说等调度性话语不完成回应。"
+    "未表达的任务要求只记为表达缺陷，不伪装成候选里的事实checks。"
+    "建议在场者接一句、听听某人的看法，本身不宣称安排权、既有约定或对方会服从；"
+    "这种可拒绝建议不需要职务或同意记录作事实依据。若它未回应获准任务，issues只说明回应缺失，"
+    "不能因此为这项建议生成supported=false的事实check。"
+    "一阵雷声从远处传来不证明雷声已经近了或越来越近；普通语气与表情自由不提供新的外部变化。"
     "不支持的check填写reason_code；把听闻说成看过记录用acquisition_mismatch，"
     "把言论内容当事实用statement_promotion，凭空增加过去经历用invented_history。"
     "标签只是解释本次判断，必须仍在basis说明具体依据。"
-    "同时填写delivery，按最终台词而非旧意图确定addressee_id、expects_reply、response_kind。"
-    "expects_reply只在候选实际向接收者提出待回答问题或明确请求时为true。"
-    "‘还需要哪些材料，我不知道，需要先核实’是说话者承认未知，不是向接收者提问；"
-    "‘我稍后核实再告诉你’是单方承诺，不能标为等待玩家回答。"
-    "玩家本轮已经明确说愿意一起核对时，角色回答‘我们可以现在就一起看’是在接受，"
-    "没有再要求玩家作决定；若后面没有新的明确问题或请求，expects_reply=false。"
-    "‘你能提供哪些材料？’或‘请告诉我你的决定’才产生待回应请求。"
-    "单纯确认决定、解释边界、收尾时为false，即使旧intent.expects_reply=true也不可继承。"
-    "intent.remaining_request表示留待后续片段处理的工作，不是当前台词必须完成的要求；"
-    "不能仅因当前台词未完成该字段而拒绝，也不能要求当前片段提前向另一接收者提问。"
-    "delivery.remaining_request仅保留此角色仍未执行的要求；本片段已向对方提问后，"
-    "等待对方回答不属于自己的remaining_request，应清空，不重复提问。"
-    "一个片段只能有一个当前待答接收者。允许先对玩家作简短回应、回答或承认未知，"
-    "再把唯一的新问题交给在场NPC；前段不得另向玩家提出待答问题或请求，"
-    "且NPC交谈须符合当前intent任务。此时delivery.addressee_id应是该NPC，expects_reply=true。"
-    "intent.purpose要求回答具体问题时，候选必须实质回答、明确拒绝或承认未知，"
-    "仅复述意愿、泛泛安慰却漏掉该问题应拒绝；不要要求本片段执行分配给其他角色或后续片段的请求。"
-    "确认或收尾任务无须附加新问题；候选另起任务以外需玩家决定或提供资料的问答应拒绝。"
-    "继续检查多接收者：仅有两个称呼或先后回应两人，不构成交付冲突；"
-    "关键是本片段是否向两个不同cast成员分别提出独立的待答问题、请求或决定。"
-    "如有两个待答接收者，必须在checks中增加supported=false、reason_code=mixed_recipient的一项，"
-    "令accepted=false，不能只悄悄改delivery.addressee_id。"
-    "例如‘旅人，我听到了。沈舟，你怎么看？’只有沈舟待答，可作为自然交接；"
-    "‘沈舟，你觉得呢？旅人，你愿意去吗？’分别要求两人答复，必须拒绝。"
-    "称呼指直接呼告该人，不是句中提到姓名或第三人称。"
-    "转述有来源的第三人请求、讨论稍后向谁询问，不等于当前已经向第三人提出问题。"
-    "末尾明确问另一个在场NPC时，接收者必须是该NPC，expects_reply=true；"
-    "明确不愿回答应response_kind=refuse，普通陈述或拒绝不自动要求对方回复。"
-    "我建议/我们可以等建议并不总是一个问题；只有明确请求决定或回答才expects_reply。"
+    "delivery按最终台词而非旧intent填写；只有明确向一人请求回答、决定或行动，expects_reply才为true。"
+    "承认未知、单方承诺、接受玩家已有选择、建议、确认或收尾都不自动等待回答。"
+    "delivery.requires_player_action必须填布尔值，只依据最终台词：明确需要接收者先行动、决定或授权才能继续，填true；"
+    "普通交流问句、允许他人继续发言的询问填false。例如‘你想先听哪部分？’填false，"
+    "‘请先作决定，我再继续说’填true；不得照搬intent.awaiting_player_action。"
+    "intent.remaining_request属于后续片段，不要求本片段提前完成；已提出的问题是在等对方，"
+    "不能留在delivery.remaining_request中。任务要求回答的问题要实际回答、拒绝或承认未知。"
+    "mixed_recipient仅指两名不同人物都被明确要求回答、决定或执行，如‘甲请决定；乙也请决定’；"
+    "须在checks写supported=false、reason_code=mixed_recipient并令accepted=false。"
+    "告知甲已确认事实、回应甲或给甲一个不要求立即行动的建议后，再只问乙，明确合法；"
+    "例如‘黎安，我看见封条了。玩家，你现在决定吗？’不能因两个称呼拒绝，delivery指向玩家。"
+    "‘沈舟、林澈，你们各自怎么看？’虽只有一问号，仍要求两人分别回答，属于mixed_recipient。"
+    "末尾问NPC时delivery.addressee_id须为该NPC；拒答用response_kind=refuse。"
     "不得虚构角色ID，使用输入cast和意图中的ID。"
     "先说明basis原文实际支持的范围，再判断supported；最后填写accepted和issues。"
     "尤其：同意比较两套方案≠同意把两套方案放进正式记录；后者若只是个人目标就不受支持。"
@@ -104,11 +92,44 @@ REVIEW_SYSTEM = (
     "issues只填写候选中需要修正的实际缺陷，不放正面评价或通过理由；通过时issues必须为空。"
 )
 
+CONCISE_EXPLANATION = (
+    "本次使用简洁解释格式：保留上述全部核查要求、逐项checks和完整delivery，"
+    "包括未写入claims的断言、问句预设和任务完成情况。"
+    "每条basis只写具体依据及其支持范围或缺口，建议60字以内；复杂范围需要更多字时可写长，"
+    "不能为了短而遗漏检查、合并不同断言或失去可核验依据。"
+    "issues不重复checks已经指出的事实问题，只补需要修正的表达任务、角色自主权或会话缺陷；"
+    "不得因此把拒绝改成接受。通过时issues仍为空。所有字段及判定语义保持不变。"
+)
 
-def review_messages(info, evidence, speech, sources, *, actor_id, documents, intent, player_request, cast):
+
+def review_messages(
+    info,
+    evidence,
+    speech,
+    sources,
+    *,
+    actor_id,
+    documents,
+    intent,
+    player_request,
+    cast,
+    director_assignment=None,
+    explanation="full",
+    response_binding=False,
+):
+    if explanation not in {"full", "concise"}:
+        raise ValueError("Unknown review explanation mode")
+    from .response_review import RESPONSE_BINDING_SYSTEM, response_source
+
+    if response_binding and response_source(director_assignment) is None:
+        raise ValueError("Response binding requires an authorized answer_only utterance")
     return [
-        {"role": "system", "content": REVIEW_SYSTEM},
-        review_message(info, evidence, speech, sources, actor_id=actor_id, documents=documents),
+        {
+            "role": "system",
+            "content": REVIEW_SYSTEM + (CONCISE_EXPLANATION if explanation == "concise" else "")
+                + (RESPONSE_BINDING_SYSTEM if response_binding else ""),
+        },
+        review_message(info, evidence, speech, sources, actor_id=actor_id, documents=documents, cast=cast),
         {
             "role": "user",
             "content": json.dumps(
@@ -118,6 +139,20 @@ def review_messages(info, evidence, speech, sources, *, actor_id, documents, int
                     "intent": intent,
                     "untrusted_player_request": player_request,
                     "cast": cast,
+                    "authorized_performance_requirement": None
+                    if director_assignment is None
+                    else {
+                        key: director_assignment[key]
+                        for key in (
+                            "objective",
+                            "addressees",
+                            "delivery_constraints",
+                            "response_utterance",
+                            "response_evidence_rule",
+                            "response_turn_policy",
+                        )
+                        if key in director_assignment
+                    },
                 },
                 ensure_ascii=False,
             ),

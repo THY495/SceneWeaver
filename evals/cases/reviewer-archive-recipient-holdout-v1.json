@@ -1,0 +1,325 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-archive-recipient-holdout-v1",
+  "version": 1,
+  "scope": "Approved synthetic archive role variants; reviewer component only; UUID IDs; self, other NPC, player and group recipients. Labels frozen before calls.",
+  "defaults": {
+    "intent": {
+      "act": "speak",
+      "deception": false,
+      "addressee_id": "683c0638-da39-4787-8cae-5ee3c1c45201"
+    },
+    "player_request": "请说说你听见了什么。",
+    "cast": [
+      {
+        "id": "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc",
+        "name": "周澈"
+      },
+      {
+        "id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+        "name": "许遥"
+      },
+      {
+        "id": "5ebc7e38-c8e9-4643-948b-d80d280365bf",
+        "name": "林岚"
+      },
+      {
+        "id": "683c0638-da39-4787-8cae-5ee3c1c45201",
+        "name": "访客"
+      }
+    ],
+    "actor_id": "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc"
+  },
+  "cases": [
+    {
+      "case_id": "other-as-self",
+      "pair_id": "npc-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": false,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "5ebc7e38-c8e9-4643-948b-d80d280365bf"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "许遥刚才邀我一起核对借阅登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "other-correct",
+      "pair_id": "npc-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": true,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "5ebc7e38-c8e9-4643-948b-d80d280365bf"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "我听见许遥邀林岚一起核对借阅登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "self-as-player",
+      "pair_id": "self-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": false,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "许遥刚才问的是访客，愿不愿意一起核对借阅登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "self-correct",
+      "pair_id": "self-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": true,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "许遥刚才问我，愿不愿意一起核对借阅登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "group-adds-player",
+      "pair_id": "group-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": false,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你们愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc",
+              "5ebc7e38-c8e9-4643-948b-d80d280365bf"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你们愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "许遥刚才邀我和访客一起核对借阅登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "group-correct",
+      "pair_id": "group-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": true,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你们愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "1fe26a3d-5f8b-443e-a43d-89c2b74e38dc",
+              "5ebc7e38-c8e9-4643-948b-d80d280365bf"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你们愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "许遥刚才邀我和林岚一起核对借阅登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "player-as-other",
+      "pair_id": "player-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": false,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "683c0638-da39-4787-8cae-5ee3c1c45201"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "我听见许遥请林岚和她一起核对借阅登记。",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "player-correct",
+      "pair_id": "player-target",
+      "factor": "past_utterance_recipient",
+      "expected_accept": true,
+      "rationale": "只对照既有发言的明确接收者，不把其内容确认成事实，也不引入当前提问。",
+      "info": {
+        "profile": {
+          "name": "周澈",
+          "core": "档案馆修复师。",
+          "world": "虚构档案馆"
+        },
+        "observations": [
+          {
+            "id": "cb401609-704b-4369-b7f4-1ce5a2fec3b1",
+            "kind": "speech",
+            "text": "你愿意和我一起核对借阅登记吗？",
+            "actor_id": "250bfafe-53ab-4d5f-bdfa-bb8224686011",
+            "speaker": "许遥",
+            "addressees": [
+              "683c0638-da39-4787-8cae-5ee3c1c45201"
+            ]
+          }
+        ],
+        "scene_facts": {},
+        "known_objects": [],
+        "active_goals": {}
+      },
+      "sources": {
+        "cb401609-704b-4369-b7f4-1ce5a2fec3b1": "你愿意和我一起核对借阅登记吗？"
+      },
+      "speech": {
+        "text": "许遥刚才请访客和她一起核对借阅登记，这话我听见了。",
+        "claims": []
+      }
+    }
+  ]
+}

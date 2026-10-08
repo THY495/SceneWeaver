@@ -1,0 +1,60 @@
+{
+  "suite_id": "ferry-independent-player-action-v1",
+  "scope": "合成渡船故事：玩家独立行动及作者同行约束",
+  "cases": [
+    {
+      "case_id": "leave-alone",
+      "exits": [{"id": "notice", "condition": "玩家明确决定前往公告栏。", "requires_agreement": []}],
+      "player_event_id": "player-now",
+      "observations": [{"id": "player-now", "kind": "speech", "actor_alias": "player", "is_player": true, "text": "我自己去公告栏看看，你们继续聊。"}],
+      "constraints": [],
+      "expected_accept": true
+    },
+    {
+      "case_id": "answer-before-leaving",
+      "exits": [{"id": "notice", "condition": "玩家明确决定前往公告栏。", "requires_agreement": []}],
+      "player_event_id": "player-now",
+      "observations": [{"id": "player-now", "kind": "speech", "actor_alias": "player", "is_player": true, "text": "沈舟先告诉我公告到底写了什么，听完他的答复我才去公告栏。"}],
+      "constraints": [],
+      "expected_accept": false
+    },
+    {
+      "case_id": "ask-without-leaving",
+      "exits": [{"id": "notice", "condition": "玩家明确决定前往公告栏。", "requires_agreement": []}],
+      "player_event_id": "player-now",
+      "observations": [{"id": "player-now", "kind": "speech", "actor_alias": "player", "is_player": true, "text": "沈舟，公告写了什么？我还没决定去不去。"}],
+      "constraints": [],
+      "expected_accept": false
+    },
+    {
+      "case_id": "prior-agreement-withdrawn",
+      "exits": [{"id": "notice", "condition": "玩家去公告栏，阿岚同意同行。", "requires_agreement": ["alan"]}],
+      "player_event_id": "player-now",
+      "observations": [
+        {"id": "alan-before", "kind": "speech", "actor_alias": "alan", "is_player": false, "text": "好，我跟你去公告栏。"},
+        {"id": "player-now", "kind": "speech", "actor_alias": "player", "is_player": true, "text": "那我们现在去公告栏。"}
+      ],
+      "constraints": [{"id": "alan-after", "kind": "speech", "actor_alias": "alan", "is_player": false, "text": "我改主意了，我留在这里，不跟你去了。"}],
+      "expected_accept": false
+    },
+    {
+      "case_id": "prior-agreement-still-current",
+      "exits": [{"id": "notice", "condition": "玩家去公告栏，阿岚同意同行。", "requires_agreement": ["alan"]}],
+      "player_event_id": "player-now",
+      "observations": [
+        {"id": "alan-before", "kind": "speech", "actor_alias": "alan", "is_player": false, "text": "好，我跟你去公告栏。"},
+        {"id": "player-now", "kind": "speech", "actor_alias": "player", "is_player": true, "text": "那我们现在去公告栏。"}
+      ],
+      "constraints": [{"id": "alan-after", "kind": "speech", "actor_alias": "alan", "is_player": false, "text": "雨还在下，我仍然跟你一起去。"}],
+      "expected_accept": true
+    },
+    {
+      "case_id": "new-agreement-cannot-supply-independent-premise",
+      "exits": [{"id": "notice", "condition": "玩家去公告栏，阿岚同意同行。", "requires_agreement": ["alan"]}],
+      "player_event_id": "player-now",
+      "observations": [{"id": "player-now", "kind": "speech", "actor_alias": "player", "is_player": true, "text": "阿岚，你愿意的话我们就一起去公告栏。"}],
+      "constraints": [{"id": "alan-after", "kind": "speech", "actor_alias": "alan", "is_player": false, "text": "好，我跟你去。"}],
+      "expected_accept": false
+    }
+  ]
+}

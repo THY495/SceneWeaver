@@ -154,6 +154,8 @@ class Recipe(StrictInput):
                     or requirement.actor not in aliases
                 ):
                     raise ValueError("转场物品条件必须引用已有物品与角色。")
+                if any(actor not in {p.alias for p in self.people} for actor in edge.requires_agreement):
+                    raise ValueError("转场同行同意只能引用工程中已有的 NPC。")
             for node in self.narrative.nodes:
                 if any(p.actor not in aliases for p in node.entry_locations):
                     raise ValueError("场景入场地点只能引用工程中已有的人物或玩家。")
@@ -181,6 +183,8 @@ class Recipe(StrictInput):
                 for block in node.opening or []:
                     if block.speaker and block.speaker not in node.observers:
                         raise ValueError("固定对白的说话者必须是本场知情者，且引用已有角色。")
+                    if block.target and block.target not in node.observers:
+                        raise ValueError("固定对白的接收者必须是本场知情者，且引用已有角色。")
                 if node.stage is not None and any(
                     p.actor not in {a.alias for a in self.people} for p in node.stage
                 ):

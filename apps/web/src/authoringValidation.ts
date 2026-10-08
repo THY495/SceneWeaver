@@ -55,6 +55,85 @@ export type AuthoringDiagnostic = {
   panel: 'opening' | 'rules' | 'exits' | 'stage'
   message: string
 }
+export function openingRecipientWarnings(graph?: Narrative | null): AuthoringDiagnostic[] {
+  if (!graph) return []
+  return graph.nodes.flatMap((node) =>
+    (node.opening || [])
+      .filter(
+        (block) =>
+          block.kind === 'dialogue' &&
+          !block.target &&
+          node.observers.length >= 3 &&
+          /你(?!们)/.test(block.text) &&
+          /[?？]/.test(block.text),
+      )
+      .map((block) => ({
+        code: `opening-recipient:${node.id}:${block.id}`,
+        scene: node.id,
+        panel: 'opening' as const,
+        message: `场景「${node.title}」有面向“你”的固定提问，且有多位知情者，但尚未指定“说给谁听”；旁听角色可能误认自己是接收者。若本来就是对所有人在场者发问，可保留未指定。`,
+      })),
+  )
+}
+export function transitionWarnings(graph?: Narrative | null, playerAlias = 'player'): AuthoringDiagnostic[] {
+  if (!graph) return []
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]))
+  const warnings: AuthoringDiagnostic[] = []
+  for (const source of graph.nodes) {
+    const exits = graph.edges.filter((edge) => edge.source === source.id)
+    const aiConditions = new Map<string, typeof exits>()
+    for (const edge of exits) {
+      if (edge.trigger !== 'ai' || !edge.condition?.trim()) continue
+      const key = edge.condition.trim().replace(/\s+/g, ' ')
+      aiConditions.set(key, [...(aiConditions.get(key) || []), edge])
+    }
+    for (const sameCondition of aiConditions.values())
+      if (sameCondition.length > 1)
+        warnings.push({
+          code: `ai-condition-duplicate:${source.id}:${sameCondition[0].id}`,
+          scene: source.id,
+          panel: 'exits',
+          message: `场景「${source.title}」的出口「${sameCondition.map((edge) => edge.label).join('」「')}」使用相同的 AI 触发条件；若附加条件也同时满足，系统会因多个出口成立而留在当前场景。请写出可区分的条件或确认附加条件互斥。`,
+        })
+    if (exits.length && exits.every((edge) => edge.trigger === 'ai' && edge.requires_agreement?.length))
+      warnings.push({
+        code: `agreement-no-alternative:${source.id}`,
+        scene: source.id,
+        panel: 'exits',
+        message: `场景「${source.title}」的所有出口都要求 NPC 本人同意；相关角色拒绝、含糊或没有发言时，玩家会留在当前场景。若希望玩家仍可继续，请增加不依赖同意的分支。`,
+      })
+  }
+  for (const edge of graph.edges) {
+    const source = nodes.get(edge.source)
+    const target = nodes.get(edge.target)
+    if (!source || !target) continue
+    for (const actor of edge.requires_agreement || [])
+      if (
+        source.mode === 'backstage' ||
+        !source.direction?.beats.some((beat) => beat.participants.includes(actor)) ||
+        !source.observers.includes(actor)
+      )
+        warnings.push({
+          code: `agreement-unreachable:${edge.id}:${actor}`,
+          scene: source.id,
+          panel: 'exits',
+          message: `出口「${edge.label}」要求 NPC ${actor} 亲口同意，但该角色没有同时参与本场 AI 演出和开场知情；请检查他是否有机会在本场向玩家表态。`,
+        })
+    if (!source.direction) continue
+    const performers = new Set(source.direction.beats.flatMap((beat) => beat.participants))
+    for (const entry of target.entry_locations || []) {
+      if (entry.actor === playerAlias || !performers.has(entry.actor)) continue
+      if (edge.requires_agreement?.includes(entry.actor)) continue
+      warnings.push({
+        code: `transition-commitment:${edge.id}:${entry.actor}`,
+        scene: source.id,
+        panel: 'exits',
+        message: `「${source.title}」的 NPC ${entry.actor} 参与 AI 演出，出口「${edge.label}」却会让其固定进入「${target.title}」。若该角色可以拒绝同行，请改用 AI 出口并要求本人同意；拒绝路线应通往不移动该角色的场景。固定剧情移动则可保留。`,
+      })
+    }
+  }
+  return warnings
+}
 export function itemReferences(graph?: Narrative | null): Record<string, string[]> {
   const result: Record<string, string[]> = {}
   const add = (id: string, label: string) => {
@@ -122,6 +201,15 @@ export function graphDiagnostics(graph?: Narrative | null): AuthoringDiagnostic[
         message: `场景「${node.title}」的 AI 互动编排尚未完成：请填写场景目标、段落名称、目标、完成条件并选择参与角色。`,
       })
   for (const node of graph.nodes)
+    for (const beat of node.direction?.beats || [])
+      if (beat.npc_exchange_required && beat.participants.length < 2)
+        issues.push({
+          code: 'director-npc-exchange:' + beat.id,
+          scene: node.id,
+          panel: 'opening',
+          message: `场景「${node.title}」的段落「${beat.title}」要求 NPC 交流，请选择至少两位参与角色。`,
+        })
+  for (const node of graph.nodes)
     if (!node.opening?.length && !node.text?.trim())
       issues.push({
         code: 'opening:' + node.id,
@@ -157,12 +245,18 @@ export function removeActorFromGraph(graph: Narrative | null | undefined, actor:
     node.observers = node.observers.filter((a) => a !== actor)
     node.participants = node.participants?.filter((a) => a !== actor)
     node.entry_locations = node.entry_locations?.filter((entry) => entry.actor !== actor)
-    for (const beat of node.direction?.beats || [])
+    for (const beat of node.direction?.beats || []) {
       beat.participants = beat.participants.filter((a) => a !== actor)
+      if (beat.role_focus) delete beat.role_focus[actor]
+    }
     if (node.opening) {
       node.opening = node.opening.filter((b) => b.speaker !== actor)
+      for (const block of node.opening) if (block.target === actor) block.target = null
       if (!node.opening.length) node.opening = null
     }
   }
-  for (const edge of graph.edges) if (edge.requires_holding?.actor === actor) edge.requires_holding = null
+  for (const edge of graph.edges) {
+    if (edge.requires_holding?.actor === actor) edge.requires_holding = null
+    edge.requires_agreement = edge.requires_agreement?.filter((alias) => alias !== actor)
+  }
 }

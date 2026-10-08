@@ -10,7 +10,7 @@ from chatbot.directing import Beat, DirectorPlan, SceneDirection
 from chatbot.director_state import install_plan
 from chatbot.npc.context import TurnContext
 from chatbot.npc.directed_scene import respond_directed
-from chatbot.npc.performance import UnsafeDraftExhausted
+from chatbot.npc.performance import ResponseContractConflict, UnsafeDraftExhausted
 from chatbot.storage import Conversation, SceneRecord, Story, Task
 
 
@@ -18,11 +18,13 @@ def test_recovery_preserves_scheduled_eligible_speakers_only():
     from chatbot.npc.director import pending_recovery_actors
 
     ledger = {
-        "plan": {"jobs": [
-            {"id": "first", "actor": "a"},
-            {"id": "second", "actor": "b"},
-            {"id": "third", "actor": "c"},
-        ]},
+        "plan": {
+            "jobs": [
+                {"id": "first", "actor": "a"},
+                {"id": "second", "actor": "b"},
+                {"id": "third", "actor": "c"},
+            ]
+        },
         "candidates": {"first": {"status": "committed", "event_id": "e"}},
     }
     assert pending_recovery_actors(ledger, {"a", "b", "c"}, 2) == ["b", "c"]
@@ -66,7 +68,7 @@ async def test_replanning_is_bounded_and_never_retries_budget_or_cancel(db, monk
 
 @pytest.mark.parametrize("stop,expected", [("limit", 2), ("player_turn", 1)])
 async def test_continuous_beats_stop_at_player_boundary(db, monkeypatch, stop, expected):
-    from chatbot import auto_routing
+    from chatbot import auto_routing, event_projection
     from chatbot.npc import directed_scene
 
     direction = SceneDirection(
@@ -111,6 +113,7 @@ async def test_continuous_beats_stop_at_player_boundary(db, monkeypatch, stop, e
     monkeypatch.setattr(directed_scene, "prepare_scene_plan", prepare)
     monkeypatch.setattr(directed_scene, "execute_plan", execute)
     monkeypatch.setattr(auto_routing, "assess", AsyncMock())
+    monkeypatch.setattr(event_projection, "requests_for", lambda *_args: [])
     result = await respond_directed(
         SimpleNamespace(db=db, provider=None),
         SimpleNamespace(id="t", kind="respond", epoch=3),
@@ -122,14 +125,17 @@ async def test_continuous_beats_stop_at_player_boundary(db, monkeypatch, stop, e
     assert prepare.await_count == expected - 1
     if stop == "player_turn":
         assert result["director_handoff"] == {
-            "world_seq": 12, "node_id": "node", "entry_event_id": "entry", "epoch": 3
+            "world_seq": 12,
+            "node_id": "node",
+            "entry_event_id": "entry",
+            "epoch": 3,
         }
     else:
         assert "director_handoff" not in result
 
 
-@pytest.mark.parametrize("failure_kind", ["draft", "assignment"])
-async def test_rejected_later_directed_segment_keeps_committed_speech_without_routing(
+@pytest.mark.parametrize("failure_kind", ["draft", "assignment", "contract"])
+async def test_rejected_later_segment_keeps_speech_and_only_checks_player_action(
     db, config, runtime, fake, monkeypatch, failure_kind
 ):
     from sqlalchemy import select
@@ -178,6 +184,8 @@ async def test_rejected_later_directed_segment_keeps_committed_speech_without_ro
     async def perform(services, task, turn, actor, intent, step, **kwargs):
         if step and failure_kind == "draft":
             raise UnsafeDraftExhausted("后续台词无依据")
+        if step and failure_kind == "contract":
+            raise ResponseContractConflict("后续提问与回应契约冲突")
         with db.session() as s:
             revision = s.get(Conversation, actor.id).revision
         return {"answer": "我先说说自己的看法。", "revision": revision}
@@ -185,7 +193,8 @@ async def test_rejected_later_directed_segment_keeps_committed_speech_without_ro
     monkeypatch.setattr(directed_turn, "authorize_assignment", authorize)
     monkeypatch.setattr(directed_turn, "plan_actor", intention)
     monkeypatch.setattr(directed_turn, "perform_actor", perform)
-    monkeypatch.setattr(auto_routing, "assess", AsyncMock(side_effect=AssertionError("must not route")))
+    routing = AsyncMock(return_value=None)
+    monkeypatch.setattr(auto_routing, "assess", routing)
     result = await respond_directed(
         SimpleNamespace(db=db, runtime=runtime, provider=None),
         task,
@@ -195,6 +204,8 @@ async def test_rejected_later_directed_segment_keeps_committed_speech_without_ro
     )
     assert result["stop_reason"] == "safety_rejected"
     assert result["interaction_complete"] is False
+    assert result["player_action_route_accepted"] is False
+    routing.assert_awaited_once_with(db, None, task, player_action_only=True)
     assert [segment["text"] for segment in result["segments"]] == ["我先说说自己的看法。"]
     assert runtime.finish(task.id, task.lease_version, result=result)
     with db.session() as s:
@@ -202,7 +213,8 @@ async def test_rejected_later_directed_segment_keeps_committed_speech_without_ro
         assert len(list(s.scalars(select(SceneRecord).where(SceneRecord.task_id == task.id)))) == 2
 
 
-async def test_rejected_first_directed_segment_still_fails(db, monkeypatch):
+async def test_rejected_first_directed_segment_still_fails_without_independent_exit(db, monkeypatch):
+    from chatbot import auto_routing
     from chatbot.npc import directed_scene
 
     monkeypatch.setattr(
@@ -215,11 +227,14 @@ async def test_rejected_first_directed_segment_still_fails(db, monkeypatch):
         "execute_recoverable",
         AsyncMock(side_effect=UnsafeDraftExhausted("首段无依据")),
     )
+    routing = AsyncMock(return_value=None)
+    monkeypatch.setattr(auto_routing, "assess", routing)
     with pytest.raises(UnsafeDraftExhausted, match="首段"):
         await respond_directed(
-            SimpleNamespace(db=db),
-            SimpleNamespace(id="uncommitted", kind="respond"),
+            SimpleNamespace(db=db, provider=None, runtime=SimpleNamespace(check=Mock())),
+            SimpleNamespace(id="uncommitted", kind="respond", lease_version=1),
             SimpleNamespace(player_id="player"),
             None,
             {"plan": {"beat_id": "b"}},
         )
+    assert routing.await_count == 1

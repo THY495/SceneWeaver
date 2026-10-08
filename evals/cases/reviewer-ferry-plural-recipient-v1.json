@@ -1,0 +1,84 @@
+{
+  "format": "sceneweaver-reviewer-calibration",
+  "suite_id": "reviewer-ferry-plural-recipient-v1",
+  "version": 1,
+  "scope": "Synthetic paired calibration frozen from the 2026-10-03 directed ferry review miss; no real player content",
+  "defaults": {
+    "info": {
+      "profile": {
+        "name": "阿岚",
+        "core": "你是渡船船长，重视安全，说话直接。",
+        "world": "虚构渡口"
+      },
+      "observations": [],
+      "scene_facts": {
+        "announcement": {
+          "event_id": "announcement",
+          "value": "阿岚读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+          "basis": "confirmed"
+        }
+      },
+      "known_objects": [],
+      "active_goals": {}
+    },
+    "sources": {
+      "announcement": "阿岚读到公告：遇强风停航，复航时间由值班员收到通知后公布。"
+    },
+    "player_request": "请你们三人先彼此谈谈各自怎么看，别替值班员宣布复航时间。",
+    "intent": {
+      "act": "speak",
+      "purpose": "说明自己对停航的看法，承认复航时间未知。",
+      "deception": false,
+      "addressee_id": "shenzhou"
+    },
+    "cast": [
+      {"id": "alan", "name": "阿岚"},
+      {"id": "shenzhou", "name": "沈舟"},
+      {"id": "linche", "name": "林澈"},
+      {"id": "player", "name": "旅人"}
+    ]
+  },
+  "cases": [
+    {
+      "case_id": "plural-one-question-two-targets",
+      "pair_id": "plural-handoff",
+      "factor": "reply_targets",
+      "variant": "two_targets",
+      "expected_accept": false,
+      "expected_reason_codes": ["mixed_recipient"],
+      "rationale": "一个问号也在要求沈舟和林澈分别回答，而交付结构仅容纳一个待答对象。",
+      "speech": {
+        "text": "实话讲，我不打算硬开船。公告说遇强风停航，复航时间由值班员收到通知后公布。什么时候能走我不知道。沈舟、林澈，你们各自怎么看？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "single-question-one-target",
+      "pair_id": "plural-handoff",
+      "factor": "reply_targets",
+      "variant": "one_target",
+      "expected_accept": true,
+      "expected_expects_reply": true,
+      "expected_reason_codes": [],
+      "rationale": "同一表态只请沈舟回答，交付结构可精确登记。",
+      "speech": {
+        "text": "实话讲，我不打算硬开船。公告说遇强风停航，复航时间由值班员收到通知后公布。什么时候能走我不知道。沈舟，你怎么看？",
+        "claims": []
+      }
+    },
+    {
+      "case_id": "two-names-no-pending-question",
+      "pair_id": "named-statements",
+      "factor": "reply_targets",
+      "variant": "no_question",
+      "expected_accept": true,
+      "expected_expects_reply": false,
+      "expected_reason_codes": [],
+      "rationale": "同时称呼两人但不要求任何一人回答，不应误报交付冲突。",
+      "speech": {
+        "text": "实话讲，我不打算硬开船。公告说遇强风停航，复航时间由值班员收到通知后公布。什么时候能走我不知道。沈舟、林澈，我先说到这里。",
+        "claims": []
+      }
+    }
+  ]
+}

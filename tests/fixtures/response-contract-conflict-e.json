@@ -1,0 +1,79 @@
+{
+  "scope": "Real synthetic run e, first full review after citation repair; IDs remapped only by test",
+  "source_sha256": "298faf112592cd587043bdf0910b4d4b179d57cbeacc4563a46db915ed15e504",
+  "joint_operation": "e5aefc24-c68d-4dab-bc56-56cd89a84fb5:director:1:alan_ask_first:0:actor-turn-v3:0:120cd200-09c3-42ab-850f-11d941ce9573:3dff7cede5eba4e4ed722a6e:0",
+  "review_operation": "e5aefc24-c68d-4dab-bc56-56cd89a84fb5:director:1:alan_ask_first:0:npc:120cd200-09c3-42ab-850f-11d941ce9573:0:review:1:2b5f63acaeb324eb55d0ddc6",
+  "speech_operation": "e5aefc24-c68d-4dab-bc56-56cd89a84fb5:director:1:alan_ask_first:0:npc:120cd200-09c3-42ab-850f-11d941ce9573:0:answer:1",
+  "intent": {
+    "act": "speak",
+    "goal_id": null,
+    "purpose": "回应旅人的安排，问明对方是否要先把公告的事聊一聊，并按对方的意思等其先开口。",
+    "reply_to": "ca4a526b-0263-4af5-8a18-84183afe8ce5",
+    "deception": false,
+    "retrieval": "context",
+    "source_ids": [
+      "ca4a526b-0263-4af5-8a18-84183afe8ce5",
+      "259e5195-2fb6-4f42-81ed-2efafaa749e9"
+    ],
+    "item_action": null,
+    "addressee_id": "023d9ef8-f1d8-41e5-ba5f-30e296157748",
+    "expects_reply": true,
+    "object_action": null,
+    "response_kind": "answer",
+    "search_action": null,
+    "trigger_reason": "旅人提出由我先只问他是否先聊公告，并排出之后的接话顺序。",
+    "result_event_id": null,
+    "wait_for_player": true,
+    "remaining_request": "等旅人回答后，由沈舟接话，林澈再接沈舟的话。",
+    "agreement_decision": null,
+    "agreement_proposal": null,
+    "awaiting_player_action": true
+  },
+  "speech": {
+    "text": "公告我方才看过了，写的是遇强风停航，复航时间等值班员收到通知再公布。你是想先聊这个吧？",
+    "claims": [
+      {
+        "mode": "fact",
+        "text": "公告我方才看过了，写的是遇强风停航，复航时间等值班员收到通知再公布。",
+        "quote": "你读到公告：遇强风停航，复航时间由值班员收到通知后公布。",
+        "source_id": "259e5195-2fb6-4f42-81ed-2efafaa749e9"
+      }
+    ],
+    "performance": [
+      {
+        "pose": "neutral",
+        "text": "公告我方才看过了，写的是遇强风停航，复航时间等值班员收到通知再公布。你是想先聊这个吧？",
+        "expression": "neutral",
+        "voice_direction": "平静直白，语速正常，带一点确认的语气"
+      }
+    ],
+    "spoken_parts": [
+      "公告我方才看过了，写的是遇强风停航，复航时间等值班员收到通知再公布。你是想先聊这个吧？"
+    ]
+  },
+  "review": {
+    "checks": [
+      {
+        "text": "公告我方才看过了，写的是遇强风停航，复航时间等值班员收到通知再公布。",
+        "basis": "confirmed_events.narrative:notice:legacy 明确写『你读到公告：遇强风停航，复航时间由值班员收到通知后公布。』因此阿岚本人读到公告、内容为停航与复航时间待通知均获直接支持。",
+        "supported": true,
+        "reason_code": "none"
+      },
+      {
+        "text": "你是想先聊这个吧？",
+        "basis": "这是根据近期旅人言论『先只问我是否先聊公告』作出的确认性询问，属对已听闻发言的回应与提问，不额外断言外部事实。",
+        "supported": true,
+        "reason_code": "none"
+      }
+    ],
+    "issues": [],
+    "accepted": true,
+    "delivery": {
+      "addressee_id": "023d9ef8-f1d8-41e5-ba5f-30e296157748",
+      "expects_reply": true,
+      "response_kind": "answer",
+      "remaining_request": null,
+      "requires_player_action": false
+    }
+  }
+}

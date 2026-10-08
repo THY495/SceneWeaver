@@ -24,6 +24,10 @@
   border-color: #d9c49a;
 }
 .vn-toolbar {
+  /* Studio's generic header has a fixed height; wrapped player controls need
+     their own content height so the following stage cannot cover them. */
+  height: auto;
+  min-height: 70px;
   display: flex;
   gap: 12px;
   align-items: center;
