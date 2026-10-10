@@ -25,3 +25,6 @@ dist/
 apps/web/dist-game/
 tmp/
 t/
+
+# Standalone release checkout, artifacts and private release maintenance.
+release/

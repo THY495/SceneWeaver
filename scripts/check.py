@@ -64,6 +64,11 @@ def main():
             ],
         ),
     ]
+    if (ROOT / "RELEASE-MANIFEST.json").is_file():
+        checks.insert(
+            0,
+            ("static", "release-boundary", ROOT, [sys.executable, "scripts/verify_release.py"]),
+        )
     results = []
     for stage, name, cwd, command in checks:
         if args.stage not in ("all", stage):

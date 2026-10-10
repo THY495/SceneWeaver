@@ -27,6 +27,15 @@ IGNORED = {
 }
 SENSITIVE_NAME = re.compile(r"(?:^|/)(?:[^/]*_key|openrouter)\.txt$|\.(?:pem|pfx|p12)$", re.I)
 SECRET = re.compile(rb"(?<![A-Za-z0-9])(?:sk-|sk_)[A-Za-z0-9_-]{20,}|Bearer[ \t]+[A-Za-z0-9._~-]{24,}")
+PUBLIC_MARKDOWN = {
+    "README.md",
+    "CHANGELOG.md",
+    "CONTENT_LICENSE.md",
+    "docs/acceptance.md",
+    "examples/stories/README.md",
+}
+PRIVATE_RELEASE_FILES = {"PUSH_TO_GITHUB.md", "scripts/update_release_checkout.py"}
+LOCAL_WORKSPACE_PATH = re.compile(rb"[A-Za-z]:[\\/]WorkSpace[\\/]|CodexSandboxOffline", re.I)
 
 
 def included() -> set[str]:
@@ -47,6 +56,11 @@ def main() -> int:
     if manifest["version"] != "0.1.0-alpha.2" or manifest["scope"] != "roleplay-source-only":
         errors.append("release identity mismatch")
     actual = included() - {"RELEASE-MANIFEST.json"}
+    for relative in sorted(actual | set(expected)):
+        if relative.lower().endswith(".md") and relative not in PUBLIC_MARKDOWN:
+            errors.append(f"unapproved public Markdown: {relative}")
+        if relative in PRIVATE_RELEASE_FILES or relative.startswith("evals/directional-v1/"):
+            errors.append(f"private release maintenance or unused internal fixture: {relative}")
     if actual != set(expected):
         errors.append(
             f"file set changed: added={sorted(actual - set(expected))}, missing={sorted(set(expected) - actual)}"
@@ -63,6 +77,8 @@ def main() -> int:
             errors.append(f"sensitive filename: {relative}")
         if SECRET.search(data) and relative != "tests/test_game_library.py":
             errors.append(f"secret-shaped string: {relative}")
+        if relative in PUBLIC_MARKDOWN and LOCAL_WORKSPACE_PATH.search(data):
+            errors.append(f"local workspace path in public documentation: {relative}")
     if "projects/office/README.md" in expected or "apps/web/src/main.tsx" in expected:
         errors.append("office product or legacy mixed frontend included")
     config = (ROOT / "src/chatbot/config.py").read_text(encoding="utf-8")
