@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 
 from .event_projection import requests_for
+from .memory_dependencies import visible_memory_clause
 from .observations import perceive, record_data
 from .storage import (
     Conversation,
@@ -168,11 +169,12 @@ def observation_frame(s, story_id, owner, actor_id=None):
     memory_ids = []
     if viewer:
         candidates = s.execute(
-            select(RoleMemory.id, RoleMemory.source_ids)
-            .where(RoleMemory.actor_id == actor_id, RoleMemory.status != "deleted")
+            select(RoleMemory.id)
+            .where(RoleMemory.actor_id == actor_id, RoleMemory.status != "deleted",
+                   visible_memory_clause(visible_ids))
             .order_by(RoleMemory.created_at.desc(), RoleMemory.id.desc())
         )
-        memory_ids = [mid for mid, sources in candidates if set(sources).issubset(visible_ids)]
+        memory_ids = list(candidates.scalars())
     memories = list(s.scalars(select(RoleMemory).where(RoleMemory.id.in_(memory_ids[:100]))))
     by_id = {m.id: m for m in memories}
     snapshot = None

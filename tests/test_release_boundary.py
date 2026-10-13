@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 
-def candidate(tmp_path, extra=None, readme="# Sceneweaver\n"):
+def candidate(tmp_path, extra=None, readme="# Sceneweaver\n", version="0.1.0-alpha.3"):
     root = Path(__file__).resolve().parents[1]
     verifier = root / "scripts/verify_release.py"
     if not verifier.exists():
@@ -18,6 +18,8 @@ def candidate(tmp_path, extra=None, readme="# Sceneweaver\n"):
         "README.md": readme.encode(),
         "scripts/verify_release.py": verifier.read_bytes(),
         "src/chatbot/config.py": b'product: Literal["roleplay"] = "roleplay"\n',
+        "src/chatbot/version.py": b'PUBLIC_VERSION = "0.1.0-alpha.3"\n',
+        "pyproject.toml": b'[project]\nversion = "0.1.0a3"\n',
         "apps/web/index.html": b'<script src="/src/studio.tsx"></script>\n',
     }
     if extra:
@@ -27,7 +29,7 @@ def candidate(tmp_path, extra=None, readme="# Sceneweaver\n"):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
     manifest = {
-        "version": "0.1.0-alpha.2",
+        "version": version,
         "scope": "roleplay-source-only",
         "files": {name: hashlib.sha256(data).hexdigest() for name, data in files.items()},
     }
@@ -46,6 +48,33 @@ def test_approved_public_documentation_passes(tmp_path):
     result, report = candidate(tmp_path)
     assert result.returncode == 0
     assert report["errors"] == []
+
+
+def test_previous_release_identity_is_rejected(tmp_path):
+    result, report = candidate(tmp_path, version="0.1.0-alpha.2")
+    assert result.returncode == 1
+    assert "release identity mismatch" in report["errors"]
+
+
+@pytest.mark.parametrize(
+    "name, data, error",
+    [
+        (
+            "src/chatbot/version.py",
+            b'PUBLIC_VERSION = "0.1.0-alpha.2"\n',
+            "runtime version differs from release manifest",
+        ),
+        (
+            "pyproject.toml",
+            b'[project]\nversion = "0.1.0a2"\n',
+            "package version differs from release manifest",
+        ),
+    ],
+)
+def test_inconsistent_version_sources_are_rejected(tmp_path, name, data, error):
+    result, report = candidate(tmp_path, {name: data})
+    assert result.returncode == 1
+    assert error in report["errors"]
 
 
 @pytest.mark.parametrize(

@@ -3,11 +3,12 @@
 import ctypes
 import sys
 
-from desktop_host import main
 from launch_failure import record_smoke_failure
 
 if __name__ == "__main__":
     try:
+        from desktop_host import main
+
         main(require_game=True)
     except Exception as exc:
         if record_smoke_failure(sys.argv[1:], exc):

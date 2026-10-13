@@ -136,19 +136,58 @@ def main(*, require_game=False, studio=False):
                     time.sleep(25)
                     window.destroy()
 
+                def verified(checks):
+                    passed = isinstance(checks, dict) and all(
+                        checks.get(key) == value
+                        for key, value in {
+                            "token_present": True,
+                            "api_status": 200,
+                            "expected_json": True,
+                            "absent_status": 401,
+                            "wrong_status": 401,
+                            "replay_status": 403,
+                        }.items()
+                    )
+                    args.smoke_report.parent.mkdir(parents=True, exist_ok=True)
+                    atomic_json(
+                        args.smoke_report,
+                        {
+                            "status": "window_loaded" if passed else "api_check_failed",
+                            "renderer": "edgechromium",
+                            "hidden": True,
+                            "bootstrap_redirected": True,
+                            "authenticated_api_ready": passed,
+                            "authorization_checks": checks,
+                        },
+                    )
+                    window.destroy()
+
                 def loaded():
                     if window.get_current_url() == f"http://127.0.0.1:{ready['port']}/":
-                        args.smoke_report.parent.mkdir(parents=True, exist_ok=True)
-                        atomic_json(
-                            args.smoke_report,
-                            {
-                                "status": "window_loaded",
-                                "renderer": "edgechromium",
-                                "hidden": True,
-                                "bootstrap_redirected": True,
-                            },
+                        # A redirect alone missed a real Studio bootstrap-key mismatch.
+                        # Exercise the appropriate frontend key without echoing the token.
+                        token_key = "continuum-token" if args.game_package else "sceneweaver-token"
+                        endpoint = "/api/game/library" if args.game_package else "/api/role/projects"
+                        window.evaluate_js(
+                            "(async () => { const token = sessionStorage.getItem("
+                            + json.dumps(token_key)
+                            + "); if (!token) return {token_present:false}; const endpoint = "
+                            + json.dumps(endpoint)
+                            + "; const response = await fetch(endpoint, {headers: {Authorization: 'Bearer ' + token}});"
+                            + " const data = await response.json(); const shape = "
+                            + (
+                                "typeof data.title === 'string' && Array.isArray(data.saves)"
+                                if args.game_package
+                                else "Array.isArray(data) && data.every(p => typeof p.id === 'string')"
+                            )
+                            + "; const absent = await fetch(endpoint);"
+                            + " const wrong = await fetch(endpoint, {headers:{Authorization:'Bearer invalid-smoke-token'}});"
+                            + " const replay = await fetch("
+                            + json.dumps(ready["launch_url"])
+                            + "); return {token_present:true, api_status:response.status, expected_json:shape,"
+                            + " absent_status:absent.status, wrong_status:wrong.status, replay_status:replay.status}; })()",
+                            callback=verified,
                         )
-                        window.destroy()
 
                 window.events.loaded += loaded
                 threading.Thread(target=timeout, daemon=True).start()

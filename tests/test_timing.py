@@ -27,6 +27,16 @@ def sample_task():
     return SimpleNamespace(id="sample", attempt=1, lease_version=1, created_at=now(), updated_at=now())
 
 
+def test_capacity_diagnostics_keep_only_counts():
+    trace = TimingTrace(sample_task())
+    metrics = dict(estimated_input_tokens=23800, output_reserve_tokens=900,
+                   context_hard_tokens=24000, stage_request_tokens=25000,
+                   stage_reserved_tokens=12000, stage_workset_tokens=11000, capacity_pass=1)
+    with trace.activate(), measure("npc.plan"):
+        annotate(**metrics, messages="private", api_key="secret")
+    assert trace.spans[0]["attributes"] == metrics
+
+
 def test_invitation_and_recovery_diagnostics_survive_content_free_trace():
     trace = TimingTrace(sample_task())
     with trace.activate(), measure("npc.assignment"):
@@ -266,6 +276,51 @@ async def test_httpx_transport_marks_are_observed_on_loopback_without_payload():
     assert summary[0]["tls_ms"] is None
     assert summary[0]["headers_to_first_content_ms"] is None
     assert "secret-path" not in json.dumps(summary)
+    assert summary[0]["request_boundary_verified"] is True
+
+
+async def test_proxy_connect_cannot_supply_application_request_boundaries():
+    trace = TimingTrace(sample_task())
+    with trace.activate(), measure("model.http") as span:
+        callback = transport_marks(span)
+        await callback("http11.send_request_headers.started", {
+            "request": SimpleNamespace(method=b"CONNECT", headers="private-key", url="secret-proxy"),
+        })
+        await callback("http11.send_request_body.complete", {})
+        await callback("http11.receive_response_headers.complete", {"return_value": "private-headers"})
+        marks = span.row["marks"]
+        assert "request_body_sent" not in marks and "response_headers_received" not in marks
+        assert "proxy_connect_request_body_sent" in marks
+        await callback("proxy.start_tls.started", {})
+        await callback("proxy.start_tls.complete", {})
+        await callback("http2.send_request_headers.started", {"request": SimpleNamespace(method=b"POST")})
+        await callback("http2.send_request_body.complete", {})
+        await callback("http2.receive_response_headers.complete", {})
+        assert marks["proxy_connect_response_headers_received"] <= marks["tls_start"]
+        assert marks["tls_complete"] <= marks["request_body_sent"] <= marks["response_headers_received"]
+        assert "secret-proxy" not in json.dumps(span.row) and "private" not in json.dumps(span.row)
+
+
+async def test_missing_method_does_not_invent_application_timing():
+    trace = TimingTrace(sample_task())
+    with trace.activate(), measure("model.http") as span:
+        callback = transport_marks(span)
+        await callback("http11.send_request_body.complete", {})
+        await callback("http11.receive_response_headers.complete", {})
+        assert "request_body_sent" not in span.row["marks"]
+        assert "response_headers_received" not in span.row["marks"]
+
+
+def test_legacy_transport_summary_keeps_total_but_withholds_unverified_intervals():
+    legacy = {"id": "old", "spans": [{"id": "span", "name": "model.http", "duration_ms": 1250,
+              "marks": {"request_body_sent": 10, "response_headers_received": 20, "body_complete": 1200}}],
+              "requests": [{"span_id": "span", "usage_id": "usage", "role": "dialogue", "stream": False}]}
+    before = json.dumps(legacy)
+    row = transport_summary([legacy])[0]
+    assert row["http_total_ms"] == 1250
+    assert row["request_boundary_verified"] is False
+    assert row["request_sent_to_headers_ms"] is None and row["headers_to_body_complete_ms"] is None
+    assert json.dumps(legacy) == before
 
 
 async def test_worker_scene_trace_is_creator_scoped(db, config, runtime, fake, tmp_path):

@@ -8,6 +8,8 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from chatbot.native_paths import filesystem_path
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -21,7 +23,7 @@ def main():
     with (output / "backend.log").open("wb") as log:
         process = subprocess.Popen(
             [
-                str(release / "GameBackend/GameBackend.exe"),
+                str(filesystem_path(release / "GameBackend/GameBackend.exe")),
                 str(release / "pgsql"),
                 str(output / "world"),
                 str(output / "aliases"),

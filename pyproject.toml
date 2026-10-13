@@ -1,6 +1,6 @@
 [project]
 name = "sceneweaver"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "A low-code Studio and runtime for AI-driven visual novel games"
 license = "MIT"
 license-files = ["LICENSE"]

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AudioPreparation } from './audioPreparation'
+import { RequestFailure } from './apiRequest'
 import type { VisibleEvent } from './stageReading'
 import { shouldQueueUtterance } from './voiceQueue'
 
@@ -17,6 +18,7 @@ type Utterance = {
 }
 type Reply = { epoch: number; utterances: Utterance[] }
 type Props = {
+  paused?: boolean
   onRelease?: (eventId: string, notice?: string, event?: VisibleEvent) => void
   onEnabledChange?: (enabled: boolean) => void
   autoReplyEventId?: string
@@ -30,6 +32,7 @@ type Piece = { start: number; samples: number }
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export function VoicePanel({
+  paused = false,
   sid,
   request,
   currentEventId,
@@ -60,6 +63,11 @@ export function VoicePanel({
     context = useRef<AudioContext | null>(null),
     nodes = useRef<AudioBufferSourceNode[]>([])
   const generation = useRef(0)
+  const activation = useRef(0)
+  const pausePending = useRef(false),
+    storyPaused = useRef(paused)
+  storyPaused.current = paused
+  const playbackAllowed = () => !pausePending.current && !storyPaused.current
   const playing = useRef<{
     id: string
     seq: number
@@ -101,7 +109,7 @@ export function VoicePanel({
     return p
   }
   function prime() {
-    if (queue.current[0] && prepared.current.size < 2) prepare(queue.current[0])
+    if (playbackAllowed() && queue.current[0] && prepared.current.size < 2) prepare(queue.current[0])
   }
   function played() {
     const p = playing.current,
@@ -146,7 +154,7 @@ export function VoicePanel({
     if (working.current) return
     working.current = true
     try {
-      while (active.current && queue.current.length) {
+      while (active.current && playbackAllowed() && queue.current.length) {
         const job = queue.current.shift()!,
           version = generation.current,
           k = key(job),
@@ -269,19 +277,24 @@ export function VoicePanel({
             setNotice('本段播放完成')
           }
         } catch (e) {
+          const superseded =
+            job.utterance.acknowledgement &&
+            e instanceof RequestFailure &&
+            e.status === 409 &&
+            e.code === 'ack_superseded'
           if (version === generation.current && !job.utterance.acknowledgement) {
             await releaseText(job.utterance.id).catch(() => {})
             queue.current = queue.current.filter((j) => j.utterance.id !== job.utterance.id)
           }
           if (playing.current) playing.current.stoppedSamples = played()
-          await prep.receipt('failed', played()).catch(() => {})
+          await prep.receipt(superseded ? 'interrupted' : 'failed', played()).catch(() => {})
           for (const node of nodes.current) {
             try {
               node.stop()
             } catch {}
           }
           nodes.current = []
-          if (version === generation.current && active.current) setNotice(String(e))
+          if (version === generation.current && active.current && !superseded) setNotice(String(e))
         } finally {
           window.dispatchEvent(new CustomEvent('sceneweaver-acknowledgement', { detail: { sid, text: '' } }))
           if (timer) clearInterval(timer)
@@ -298,10 +311,11 @@ export function VoicePanel({
   }
   async function load(initial = false) {
     if (loading.current) return
+    const version = generation.current
     loading.current = true
     try {
       const data = await request<Reply>(`/voice/sessions/${sid}/utterances`)
-      if (!active.current) return
+      if (!active.current || version !== generation.current) return
       if (epoch.current !== null && epoch.current !== data.epoch) {
         stop()
         seenJobs.current.clear()
@@ -312,6 +326,7 @@ export function VoicePanel({
       const fallback = data.utterances.some((u) => u.id === selected && u.text_fallback)
       if (
         on.current &&
+        playbackAllowed() &&
         selected &&
         (fallback || !data.utterances.some((u) => u.id === selected && u.chunks.length))
       )
@@ -319,10 +334,10 @@ export function VoicePanel({
           selected,
           fallback ? '本段暂用文字呈现，可在菜单中手动重听。' : undefined,
         )
-      if (on.current && fallback && !working.current && !queue.current.length)
+      if (on.current && playbackAllowed() && fallback && !working.current && !queue.current.length)
         setNotice('本段语音未能准备好，已改用文字；可手动重听。')
       const latest = Math.max(0, ...data.utterances.map((r) => r.seq))
-      if (!initial && on.current) {
+      if (!initial && on.current && playbackAllowed()) {
         for (const u of data.utterances.filter((r) =>
           shouldQueueUtterance(r, {
             epoch: data.epoch,
@@ -369,6 +384,7 @@ export function VoicePanel({
       }
       seen.current = latest
     } catch (e) {
+      if (version !== generation.current || !playbackAllowed()) return
       if (reading.current.currentEventId) await releaseText(reading.current.currentEventId).catch(() => {})
       if (!initial && active.current) setNotice(String(e))
     } finally {
@@ -377,6 +393,8 @@ export function VoicePanel({
   }
   useEffect(() => {
     active.current = true
+    activation.current++
+    pausePending.current = false
     sessionStorage.removeItem('voice-enabled:' + sid)
     request<{ available: boolean; voices: Record<string, string> }>('/voice/config')
       .then(async (config) => {
@@ -393,6 +411,29 @@ export function VoicePanel({
     const event = (raw: Event) => {
       const data = (raw as CustomEvent).detail
       if (data.sid !== sid) return
+      if (data.kind === 'pause_requested' || data.kind === 'paused') {
+        activation.current++
+        pausePending.current = true
+        stop()
+        setNotice(
+          data.kind === 'pause_requested' ? '已停止播放，正在确认暂停…' : '游玩已暂停，字幕和剧情记录保留',
+        )
+        return
+      }
+      if (data.kind === 'resumed' || data.kind === 'pause_failed') {
+        activation.current++
+        pausePending.current = false
+        if (data.kind === 'pause_failed') {
+          stop()
+          on.current = false
+          sessionStorage.removeItem('voice-enabled:' + sid)
+          setEnabled(false)
+          callbacks.current.onEnabledChange?.(false)
+          setNotice('暂停未能确认；声音已停止，自动朗读已关闭，可重试暂停或重新开启语音。')
+        }
+        void load(true)
+        return
+      }
       if (['segment_committed', 'ack_ready'].includes(data.kind)) void load()
       else {
         if (data.kind === 'input_started') {
@@ -414,7 +455,10 @@ export function VoicePanel({
           pendingInput.current = false
           awaitingFirstAudio.current = false
         }
-        if (data.kind !== 'accepted') stop()
+        if (data.kind !== 'accepted') {
+          activation.current++
+          stop()
+        }
         // The server can finish the quick acknowledgement during submission.
         // Do not advance the sequence without queuing it at acceptance.
         if (data.kind !== 'input_started') void load(data.kind !== 'accepted')
@@ -422,6 +466,7 @@ export function VoicePanel({
     }
     const hidden = () => {
       if (document.visibilityState === 'hidden') {
+        activation.current++
         stop()
         on.current = false
         sessionStorage.removeItem('voice-enabled:' + sid)
@@ -431,6 +476,7 @@ export function VoicePanel({
     }
     window.addEventListener('role-voice-event', event)
     const servicesChanged = () => {
+      activation.current++
       stop()
       on.current = false
       setEnabled(false)
@@ -448,7 +494,7 @@ export function VoicePanel({
     window.addEventListener('sceneweaver-services-changed', servicesChanged)
     document.addEventListener('visibilitychange', hidden)
     const warmer = setInterval(() => {
-      if (on.current && document.visibilityState === 'visible')
+      if (on.current && playbackAllowed() && document.visibilityState === 'visible')
         void request(`/voice/sessions/${sid}/warm`, { method: 'POST' }).catch(() => {})
     }, 20000)
     let pollTimer: ReturnType<typeof setTimeout>
@@ -463,6 +509,7 @@ export function VoicePanel({
     }
     pollTimer = setTimeout(poll, 2000)
     return () => {
+      activation.current++
       sessionStorage.removeItem('voice-enabled:' + sid)
       active.current = false
       stop()
@@ -475,6 +522,9 @@ export function VoicePanel({
     }
   }, [sid])
   useEffect(() => {
+    if (paused && !pausePending.current) stop()
+  }, [paused])
+  useEffect(() => {
     if (currentEventId !== undefined) {
       if (!(playing.current?.acknowledgement && currentEventId === autoReplyEventId)) stop()
       void load()
@@ -483,6 +533,7 @@ export function VoicePanel({
   async function enable() {
     try {
       if (on.current) {
+        activation.current++
         on.current = false
         sessionStorage.removeItem('voice-enabled:' + sid)
         setEnabled(false)
@@ -490,13 +541,20 @@ export function VoicePanel({
         stop()
         return
       }
+      if (!playbackAllowed()) throw new Error('请先继续游玩，再开启语音。')
+      const version = activation.current
+      const stillRequested = () => active.current && playbackAllowed() && version === activation.current
       context.current ??= new AudioContext()
       await context.current.resume()
+      if (!stillRequested()) return
       const config = await request<{ available: boolean }>('/voice/config')
+      if (!stillRequested()) return
       if (!config.available) throw new Error('开启语音前必须配置 TTS API Key、模型与可用音色。')
       await load(true)
+      if (!stillRequested()) return
       setNotice('正在准备语音连接…')
       await request(`/voice/sessions/${sid}/warm`, { method: 'POST' }).catch(() => {})
+      if (!stillRequested()) return
       on.current = true
       sessionStorage.setItem('voice-enabled:' + sid, '1')
       setEnabled(true)
@@ -509,10 +567,13 @@ export function VoicePanel({
   }
   async function replay(u: Utterance) {
     try {
+      if (!playbackAllowed()) throw new Error('请先继续游玩，再重听台词。')
       stop()
+      const version = generation.current
       context.current ??= new AudioContext()
       await context.current.resume()
       await load(true)
+      if (!playbackAllowed() || version !== generation.current) return
       queue.current = u.chunks.map((_, index) => ({ utterance: u, index, replay: true }))
       void pump()
     } catch (e) {

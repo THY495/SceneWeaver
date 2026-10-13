@@ -5,6 +5,54 @@ from chatbot.api import create_app
 from chatbot.game_api import create_game_app
 
 
+def test_game_voice_setting_is_save_scoped_and_requires_known_speaker(db, config, fake):
+    from copy import deepcopy
+
+    from pydantic import SecretStr
+    from sqlalchemy import func, select
+    from support.story import launch
+
+    from chatbot.observations import append_record
+    from chatbot.storage import Conversation, SceneRecord
+    from chatbot.tts_adapters import binding_scope
+
+    config.product = "roleplay"
+    config.tts_provider = "qwen_audio"
+    config.tts_adapter_model = "qwen-audio-3.0-tts-flash"
+    config.tts_region = "ap-southeast-1"
+    config.tts_endpoint = "shared"
+    config.tts_adapter_api_key = SecretStr("test-only")
+    config.tts_voices = {"longanfengyue": "风悦", "longanlingxi": "灵汐"}
+    with TestClient(create_app(config, db, fake, serve_web=False)) as studio:
+        story, actors, player = launch(studio)
+        _, foreign_actors, foreign_player = launch(studio)
+    with db.session.begin() as s:
+        for index, aid in enumerate(actors[:2]):
+            append_record(s, story_id=story, kind="speech", actor=s.get(Conversation, aid),
+                          text="你好。", observer_ids=[player], dedupe=f"voice-pref-{index}",
+                          perceptions={player: {"speaker_known": False}} if index else None)
+        actor = s.get(Conversation, actors[0])
+        state, revision, epoch = deepcopy(actor.current_state), actor.revision, actor.epoch
+        before = s.scalar(select(func.count()).select_from(SceneRecord))
+    with TestClient(create_game_app(config, db, fake, player_id=player)) as game:
+        path = f"/api/game/npcs/{actors[0]}/voice"
+        changed = game.put(path, json={"voice": "longanlingxi"})
+        assert changed.status_code == 200 and changed.json() == {"voice": "longanlingxi"}
+        assert game.put(path, json={"voice": "unconfigured"}).status_code == 400
+        assert game.put(path, json={"voice": "longanlingxi", "core": "replace persona"}).status_code == 422
+        assert game.put(f"/api/voice/actors/{actors[0]}/profile", json={"voice": "longanlingxi"}).status_code == 404
+        for aid in [player, actors[1], actors[2], *foreign_actors, foreign_player, "missing"]:
+            assert game.put(f"/api/game/npcs/{aid}/voice", json={"voice": "longanlingxi"}).status_code == 404
+    with db.session() as s:
+        actor = s.get(Conversation, actors[0])
+        assert actor.current_state == {**state, "voice_profile": "longanlingxi", "voice_binding": {
+            "provider": "qwen_audio", "model": config.tts_adapter_model,
+            "scope": binding_scope(config), "voice": "longanlingxi"}}
+        assert actor.revision == revision and actor.epoch == epoch
+        assert s.scalar(select(func.count()).select_from(SceneRecord)) == before
+        assert "voice_profile" not in s.get(Conversation, foreign_actors[0]).current_state
+
+
 def test_game_web_mount_never_falls_back_to_studio(db, config, fake, tmp_path):
     config.product = "roleplay"
     studio = tmp_path / "studio"

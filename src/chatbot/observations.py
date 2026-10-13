@@ -177,6 +177,7 @@ def add_observation(s, record, actor_id, perception=None):
             kind="episode",
             content=f"#{record.seq} {view.actor_name}：{view.text}",
             source_ids=[record.id],
+            context_source_ids=[record.id],
         )
     )
 

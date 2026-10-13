@@ -13,6 +13,8 @@ export type Direction = {
     handoff: 'after_beat' | 'on_question' | 'continuous'
     max_segments: number
     npc_exchange_required?: boolean
+    source_response_tasks?: boolean
+    direct_response_actor?: string | null
   }[]
 }
 
@@ -39,6 +41,7 @@ export function DirectionEditor({
     completion: backstage ? '参与角色在本轮明确推进了段落目标。' : '出现可供玩家追问或行动的信息。',
     handoff: backstage ? 'continuous' : 'after_beat',
     max_segments: 3,
+    source_response_tasks: false,
   })
   function edit(index: number, patch: Partial<Direction['beats'][number]>) {
     if (value)
@@ -147,6 +150,10 @@ export function DirectionEditor({
                             : Object.fromEntries(
                                 Object.entries(b.role_focus || {}).filter(([alias]) => alias !== a.alias),
                               ),
+                          direct_response_actor:
+                            !e.target.checked && b.direct_response_actor === a.alias
+                              ? null
+                              : b.direct_response_actor,
                         })
                       }
                     />
@@ -226,6 +233,32 @@ export function DirectionEditor({
                     onChange={(e) => edit(i, { max_segments: Number(e.target.value) })}
                   />
                 </label>
+              </details>
+              <details>
+                <summary>按实际发言安排回应</summary>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={b.source_response_tasks === true}
+                    onChange={(e) => edit(i, { source_response_tasks: e.target.checked })}
+                  />
+                  允许导演引用已发表的原话安排回应（默认关闭）
+                </label>
+                <p>
+                  适合角色回应玩家或其他角色刚说过的话。角色只能使用本人实际听闻的内容，
+                  可以同意、质疑、拒绝或承认未知。听见一句话不代表这句话已经成为世界事实；
+                  最终台词仍须审查。需要额外演出目标的任务继续走通常审查。
+                </p>
+                {b.source_response_tasks && (
+                  <p role="status">
+                    {value.constraints.length ||
+                    b.constraints.length ||
+                    Object.keys(b.role_focus || {}).length
+                      ? '已在草稿中勾选，但本场导演约束、段落约束或角色关注点使本段暂不使用此方式。已有设置会完整保留；请按剧情需要选择，不必为了速度删掉约束。'
+                      : '本段草稿允许这种回应方式，导演会按当前互动选择是否使用。它不会强制所有角色发言，也不保证每轮更快。'}
+                  </p>
+                )}
+                <small>此处修改需要通过工作室的保存操作写入工程。</small>
               </details>
               {b.participants.length > 1 && b.max_segments <= b.participants.length && (
                 <p role="note">

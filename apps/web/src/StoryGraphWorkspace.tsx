@@ -10,6 +10,7 @@ import {
   type Node,
   type Edge,
   type Connection,
+  type ReactFlowInstance,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import type { Narrative } from './NarrativeEditor'
@@ -28,15 +29,18 @@ export default function StoryGraphWorkspace({
   onChange,
   onOpen,
   request,
+  focus,
 }: {
   graph: Narrative | null | undefined
   player: string
   onChange: (graph: Narrative) => void
   onOpen: (id: string) => void
   request: (path: string, init?: RequestInit) => Promise<unknown>
+  focus?: { scene: string; revision: number } | null
 }) {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
+  const [flow, setFlow] = useState<ReactFlowInstance<Node, Edge> | null>(null)
   const [copied, setCopied] = useState<ReturnType<typeof copySubgraph> | null>(null)
   const [error, setError] = useState('')
   const [edgeId, setEdgeId] = useState('')
@@ -75,6 +79,19 @@ export default function StoryGraphWorkspace({
       })),
     )
   }, [graph, request])
+  useEffect(() => {
+    if (!focus) return
+    setNodes((old) =>
+      old.some((node) => node.id === focus.scene)
+        ? old.map((node) => ({ ...node, selected: node.id === focus.scene }))
+        : old,
+    )
+    setEdges((old) => old.map((edge) => ({ ...edge, selected: false })))
+    const frame = requestAnimationFrame(() => {
+      if (flow) void flow.fitView({ nodes: [{ id: focus.scene }], maxZoom: 1, padding: 0.5 })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focus, flow])
   const selected = nodes.filter((n) => n.selected).map((n) => n.id)
   const edge = graph?.edges.find((e) => e.id === edgeId)
   function run(action: () => void) {
@@ -195,6 +212,7 @@ export default function StoryGraphWorkspace({
       {error && <p role="status">{error}</p>}
       <div className="story-graph-canvas">
         <ReactFlow
+          onInit={setFlow}
           nodes={nodes}
           edges={edges}
           fitView

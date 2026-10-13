@@ -28,6 +28,14 @@ VOICES = {"Cherry": "芊悦", "Ethan": "晨煦", "Serena": "苏瑶", "Chelsie": 
 TERMINAL = {"completed", "interrupted", "failed"}
 
 
+class PlaybackInterrupted(HTTPException):
+    """A deliberate playback fence, distinct from a synthesis failure."""
+
+    def __init__(self, reason):
+        super().__init__(409, "播放已停止或输入已更新")
+        self.reason = reason
+
+
 def abandoned_for_explicit_replay(prior: VoicePlayback, body: "PlaybackRequest") -> bool:
     """A new player page may take over only an inactive old-page attempt."""
     old_client = prior.timings.get("client_id")
@@ -191,6 +199,17 @@ class Profile(BaseModel):
     voice: str = Field(min_length=1, max_length=200)
 
 
+def set_actor_voice(actor, voice, config):
+    """Bind a local narration voice without changing the actor's persona or facts."""
+    if voice not in (VOICES if config.tts_provider == "qwen_legacy" else config.tts_voices):
+        raise HTTPException(400, "音色不在当前账号配置的音色列表中")
+    state = {**actor.current_state, "voice_profile": voice}
+    if config.tts_provider != "qwen_legacy":
+        state["voice_binding"] = {"provider": config.tts_provider, "model": selected_model(config),
+                                  "scope": binding_scope(config), "voice": voice}
+    actor.current_state = state
+
+
 class VoicePreview(BaseModel):
     voice: str = Field(min_length=1, max_length=200)
     text: str = Field(min_length=1, max_length=120)
@@ -327,8 +346,12 @@ class VoiceService:
         if not self.available():
             raise HTTPException(409, "语音服务配置已失效，请配置 TTS API Key 后重试")
         c = s.get(Conversation, row.session_id)
+        if c.epoch != row.epoch:
+            raise PlaybackInterrupted("epoch_changed")
         record = self.event(s, c, row.event_id)
-        if c.epoch != row.epoch or row.status in TERMINAL:
+        if row.status == "interrupted":
+            raise PlaybackInterrupted("playback_stopped")
+        if row.status in TERMINAL:
             raise HTTPException(409, "播放已停止或输入已更新")
         if row.timings.get("provider", "qwen_legacy") != self.config.tts_provider or row.timings.get(
             "model", selected_model(self.config)
@@ -393,6 +416,7 @@ class VoiceService:
         status = "failed"
         error = None
         failure = None
+        interrupted_reason = None
         phase = "authorize"
         try:
             with self.db.session() as s:
@@ -517,6 +541,9 @@ class VoiceService:
         except asyncio.CancelledError:
             status = "interrupted"
             raise
+        except PlaybackInterrupted as exc:
+            status = "interrupted"
+            interrupted_reason = exc.reason
         except Exception as exc:
             # A truncated stream is not playback completion; client checks stream_done before ACK.
             status = "failed"
@@ -531,6 +558,8 @@ class VoiceService:
                     row.status = status
                 if row and error:
                     row.timings = {**row.timings, "error": error, "failure": failure}
+                if row and interrupted_reason:
+                    row.timings = {**row.timings, "interrupted_reason": interrupted_reason}
                 if row and adapter is not None:
                     row.timings = {**row.timings, "provider_phases": getattr(adapter, "timings", {})}
             if usage:
@@ -682,17 +711,7 @@ def voice_router(service, owner):
                 or actor.current_state.get("player")
             ):
                 raise HTTPException(404)
-            actor.current_state = {**actor.current_state, "voice_profile": body.voice}
-            if config.tts_provider != "qwen_legacy":
-                actor.current_state = {
-                    **actor.current_state,
-                    "voice_binding": {
-                        "provider": config.tts_provider,
-                        "model": selected_model(config),
-                        "scope": binding_scope(config),
-                        "voice": body.voice,
-                    },
-                }
+            set_actor_voice(actor, body.voice, config)
         return {"voice": body.voice}
 
     @router.post("/preview")
@@ -1072,7 +1091,7 @@ def voice_router(service, owner):
                         SceneRecord.actor_id != c.id,
                     )
                 ):
-                    raise HTTPException(409, "正文已就绪，跳过接话")
+                    raise HTTPException(409, {"code": "ack_superseded", "reason": "正文已就绪，跳过接话"})
                 publish_acknowledgement(s, service.runtime, c, record)
             row.timings = {**row.timings, "started": True, **body.model_dump(exclude_none=True)}
             from .player_release import grant

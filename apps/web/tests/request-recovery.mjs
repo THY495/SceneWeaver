@@ -58,6 +58,8 @@ try {
   assert.equal((await requestJSON(base + '/snapshot')).commits, before)
   await assert.rejects(send('/rejected'), (e) => {
     assert.equal(e.uncertain, false)
+    assert.equal(e.status, 409)
+    assert.equal(e.code, 'stale', 'structured codes survive without treating every 409 as an ACK discard')
     assert.equal(itemError(e), '物品状态已变化')
     return true
   })

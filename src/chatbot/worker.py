@@ -4,6 +4,7 @@ import time
 from contextlib import AsyncExitStack
 from typing import TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.graph import END, START, StateGraph
 
@@ -39,8 +40,10 @@ class Worker:
         saver = await stack.enter_async_context(AsyncPostgresSaver.from_conn_string(self.config.pg_dsn))
         await saver.setup()
 
-        async def execute(state):
-            task = self.runtime.check(state["task_id"])
+        async def execute(state, config: RunnableConfig):
+            # The invocation owns a specific lease; a checkpoint must not lend
+            # a delayed old execution the lease held by its replacement worker.
+            task = self.runtime.check(state["task_id"], config["configurable"]["lease_version"])
             result = await self.agents.execute(task)
             self.runtime.finish(task.id, task.lease_version, result)
             return {"task_id": task.id, "phase": "done"}
@@ -66,7 +69,7 @@ class Worker:
         async def execute():
             if self.graph:
                 # Checkpoint contains identifiers only; canonical business effects are idempotent.
-                cfg = {"configurable": {"thread_id": task.id}}
+                cfg = {"configurable": {"thread_id": task.id, "lease_version": task.lease_version}}
                 state = await self.graph.aget_state(cfg)
                 await self.graph.ainvoke(None if state.next else {"task_id": task.id, "phase": "start"}, cfg)
             else:
@@ -146,7 +149,7 @@ class Worker:
                 for actor_id in task.payload["audience"]:
                     if service.schedule(actor_id, task.owner_id, parent_id=task.id):
                         break
-        except (StaleTask, asyncio.CancelledError):
+        except (StaleTask, asyncio.CancelledError) as exc:
             work.cancel()
             await asyncio.gather(work, return_exceptions=True)
             from .action_attempts import pause_task
@@ -154,6 +157,9 @@ class Worker:
             pause_task(self.db, task, "interrupted")
             if task.kind in {"scene_run", "npc_step"}:
                 self.runtime.finish(task.id, task.lease_version, error="场景活动或实验许可已停止或变化。")
+            if isinstance(exc, asyncio.CancelledError):
+                # Preserve recoverable task state, but honour caller/shutdown cancellation.
+                raise
         except Exception as exc:
             work.cancel()
             await asyncio.gather(work, return_exceptions=True)

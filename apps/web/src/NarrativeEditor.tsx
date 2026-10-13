@@ -348,6 +348,15 @@ export function NarrativeEditor({
                           }
                         />
                       </label>
+                      {!node.ending && !value.edges.some((edge) => edge.source === node.id) && (
+                        <div role="status" className="scene-leaf-status">
+                          <p>
+                            本场没有后续出口，但不会自动结束故事。可以保留为开放场景，让人物继续互动；
+                            如果这里是故事结局，请在「条件出口」中勾选「结束节点」。
+                          </p>
+                          <button onClick={() => setPanel('exits')}>查看结局设置</button>
+                        </div>
+                      )}
                       <div hidden={panel !== 'exits'}>
                         <label>
                           <input
@@ -368,8 +377,8 @@ export function NarrativeEditor({
                           结束节点
                         </label>
                         <p>
-                          固定收尾播放完后结束故事，不再触发 AI 互动。启用前请移除本场 AI
-                          互动及后续连线，并使用玩家场景。
+                          固定收尾播放完后结束故事；未设置固定演出或动画时，进入本场即标记结束。结束后不再触发
+                          AI 互动。启用前请移除本场 AI 互动及后续连线，并使用玩家场景。
                         </p>
                       </div>
                       <div hidden={panel !== 'rules'}>

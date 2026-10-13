@@ -4,6 +4,8 @@ from datetime import UTC, timedelta
 
 from sqlalchemy import func, or_, select, text
 
+from .memory_dependencies import memory_visible
+from .observations import visible_records
 from .providers import Embeddings
 from .storage import Conversation, Observation, RoleMemory, SceneRecord, Task, Usage, now
 
@@ -76,7 +78,10 @@ async def index_memories(agents, task):
             )
         )
         selected = []
+        visible = {event.id for event in visible_records(s, actor.id)}
         for row in rows:
+            if not memory_visible(row, visible):
+                continue
             sources = [s.get(SceneRecord, eid) for eid in row.source_ids]
             seen = set(
                 s.scalars(
@@ -93,13 +98,33 @@ async def index_memories(agents, task):
     if vectors is None:
         return {"indexed": 0}
     agents.runtime.check(task.id, task.lease_version)
+    installed = 0
     with agents.db.session.begin() as s:
         actor = s.scalar(select(Conversation).where(Conversation.id == task.session_id).with_for_update())
-        if actor.privacy_version != task.payload["privacy"]:
+        # The outside check avoids unnecessary work but cannot fence writes.
+        # Hold the original lease through installation, after the actor lock.
+        current = s.scalar(select(Task).where(Task.id == task.id).with_for_update())
+        if (
+            not actor
+            or actor.owner_id != task.owner_id
+            or actor.privacy_version != task.payload["privacy"]
+            or not current
+            or current.session_id != actor.id
+            or current.owner_id != task.owner_id
+            or current.kind != "role_index"
+            or current.status != "running"
+            or current.lease_version != task.lease_version
+            or not current.lease_until
+            or current.lease_until <= now()
+            or current.deadline <= now()
+        ):
             return {"stale": True}
+        visible = {event.id for event in visible_records(s, actor.id)}
         for (mid, version, content), vector in zip(selected, vectors or [], strict=True):
             row = s.get(RoleMemory, mid)
-            if row and row.status == "active" and row.version == version and row.content == content:
+            if (row and row.status == "active" and row.version == version and row.content == content
+                and memory_visible(row, visible)):
                 row.embedding = vector
                 row.embedding_model = agents.config.embedding_model
-    return {"indexed": len(selected)}
+                installed += 1
+    return {"indexed": installed}

@@ -6,7 +6,7 @@ import re
 
 from ..context import ContextPressure
 from ..observability.timing import annotate, measure, timed
-from ..providers import ProviderError
+from ..providers import ProviderError, chat_request_messages, estimate_tokens
 from ..schemas import ActorIntent, ActorTurnDraft
 from .context import NPCServices, TurnContext
 from .item_expression import result_candidates, result_focus
@@ -28,18 +28,21 @@ async def plan_actor(
     director_assignment: dict | None = None,
     operation_scope: str = "",
     combine_speech: bool = False,
+    _reserve_tokens: int = 6000,
+    _capacity_pass: int = 0,
 ) -> dict | None:
     annotate(actor_id=actor.id, step=step)
     db, runtime = services.db, services.runtime
     await memory.prepare_recall(task, actor.id)
     while True:
         try:
-            planning, info = services.context.assemble(task, actor_id=actor.id)
+            planning, info = services.context.assemble(task, actor_id=actor.id, reserve_tokens=_reserve_tokens)
             break
         except ContextPressure:
             runtime.check(task.id, task.lease_version)
             await asyncio.sleep(1)
     known_cast = turn.visible_cast(info)
+    workset_tokens = estimate_tokens(planning)
     from .combined_generation import (
         basis_digest,
         draft_instruction,
@@ -252,8 +255,9 @@ async def plan_actor(
     if combined:
         planning[0]["content"] += "\n" + draft_instruction(task, actor.id, info, segments=packets)
     failures = []
-    for attempt in range(2):
-        request = (
+
+    def stage_request(attempt):
+        return (
             planning
             if not attempt
             else [
@@ -286,12 +290,37 @@ async def plan_actor(
                 },
             ]
         )
+    schema = (PacketTurnDraft if packets else ActorTurnDraft) if combined else ActorIntent
+    output_tokens = 2200 if combined else 900
+    # Count the same appended schema as Provider, including the existing repair
+    # message. Reserve 512 tokens for the bounded validation issue names.
+    request_tokens = estimate_tokens(chat_request_messages(stage_request(1), schema))
+    required = request_tokens + output_tokens + 512
+    hard_limit = services.config.context_hard_tokens
+    annotate(stage_request_tokens=request_tokens, output_reserve_tokens=output_tokens,
+             stage_reserved_tokens=_reserve_tokens, capacity_pass=_capacity_pass,
+             stage_workset_tokens=workset_tokens)
+    if required > hard_limit:
+        reserve = max(6000, required - workset_tokens)
+        if reserve >= hard_limit or _capacity_pass >= 3:
+            raise ProviderError("角色意图阶段的必要材料与输出协议超过上下文容量。")
+        # Rebuild through the personal-memory selector: required observations,
+        # privacy filtering and snapshot checks remain its responsibility.
+        return await plan_actor(
+            services, task, turn, actor, memory=memory, replies=replies, step=step,
+            limit=limit, last_actor=last_actor, continuation=continuation,
+            director_assignment=director_assignment, operation_scope=operation_scope,
+            combine_speech=combine_speech, _reserve_tokens=reserve,
+            _capacity_pass=_capacity_pass + 1,
+        )
+    for attempt in range(2):
+        request = stage_request(attempt)
         generated = await services.provider.chat(
             task.id,
             "dialogue" if combined else "role_intent",
             request,
-            schema=(PacketTurnDraft if packets else ActorTurnDraft) if combined else ActorIntent,
-            max_tokens=2200 if combined else 900,
+            schema=schema,
+            max_tokens=output_tokens,
             operation=(
                 f"{operation_scope}actor-turn-v3:{step}:{actor.id}:{basis_digest(info, request)[:24]}:{attempt}"
                 if combined

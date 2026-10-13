@@ -22,6 +22,18 @@ _fields = {
     "role",
     "model",
     "usage_id",
+    "model_completion_finish_reason",
+    "model_completion_content_chars",
+    "model_completion_empty",
+    "model_completion_reasoning_chars",
+    "model_completion_refusal_present",
+    "review_output_json_shape",
+    "review_output_accepted_kind",
+    "review_output_checks_kind",
+    "review_output_issues_kind",
+    "review_output_delivery_kind",
+    "review_output_single_wrapped_review",
+    "review_json_repair_kind",
     "cache_hit",
     "stream",
     "step",
@@ -96,6 +108,14 @@ _fields = {
     "query_has_indexed_memory",
     "query_inflight_joined",
     "review_explanation_mode",
+    "purpose_recovery_order",
+    "estimated_input_tokens",
+    "output_reserve_tokens",
+    "context_hard_tokens",
+    "stage_request_tokens",
+    "stage_reserved_tokens",
+    "stage_workset_tokens",
+    "capacity_pass",
 }
 
 
@@ -128,6 +148,8 @@ _transport_marks = {
     "connection.connect_tcp.complete": "tcp_connect_complete",
     "connection.start_tls.started": "tls_start",
     "connection.start_tls.complete": "tls_complete",
+    "proxy.start_tls.started": "tls_start",
+    "proxy.start_tls.complete": "tls_complete",
     "http11.send_request_body.complete": "request_body_sent",
     "http2.send_request_body.complete": "request_body_sent",
     "http11.receive_response_headers.complete": "response_headers_received",
@@ -143,9 +165,27 @@ def transport_marks(span):
     change with httpcore versions. Missing marks mean unknown, not zero time.
     """
 
+    method = None
+    if hasattr(span, "row"):
+        span.row["attributes"]["transport_boundary_version"] = 2
+
     async def mark(event_name, _info):
+        nonlocal method
+        if event_name in {"http11.send_request_headers.started", "http2.send_request_headers.started"}:
+            # httpcore proxy CONNECT reuses the application trace extension.
+            # Only classify the method; never store the request or its payload.
+            value = getattr(_info.get("request"), "method", None)
+            method = "CONNECT" if value == b"CONNECT" else "application" if value in {
+                b"POST", b"GET", b"HEAD", b"PUT", b"PATCH", b"DELETE", b"OPTIONS",
+            } else None
         label = _transport_marks.get(event_name)
         if label:
+            if label in {"request_body_sent", "response_headers_received"}:
+                if method == "CONNECT":
+                    span.mark("proxy_connect_" + label)
+                    return
+                if method != "application":
+                    return  # Missing classification is unknown, never assumed POST.
             span.mark(label)
 
     return mark
@@ -172,12 +212,17 @@ def transport_summary(timings):
             if not span:
                 continue
             marks = span.get("marks", {})
+            boundary_version = span.get("attributes", {}).get("transport_boundary_version")
+            verified = boundary_version == 2
             rows.append(
                 {
                     "trace_id": timing.get("id"),
                     "usage_id": request.get("usage_id"),
                     "role": request.get("role"),
                     "stream": request.get("stream"),
+                    "transport_boundary_version": boundary_version,
+                    "request_boundary_verified": verified and "request_body_sent" in marks
+                    and "response_headers_received" in marks,
                     "http_total_ms": round(span["duration_ms"], 2)
                     if isinstance(span.get("duration_ms"), int | float)
                     else None,
@@ -187,13 +232,13 @@ def transport_summary(timings):
                     "tls_ms": difference(marks, "tls_start", "tls_complete"),
                     "request_sent_to_headers_ms": difference(
                         marks, "request_body_sent", "response_headers_received"
-                    ),
+                    ) if verified else None,
                     "headers_to_first_content_ms": difference(
                         marks, "response_headers_received", "first_content"
-                    ),
+                    ) if verified else None,
                     "headers_to_body_complete_ms": difference(
                         marks, "response_headers_received", "body_complete"
-                    ),
+                    ) if verified else None,
                 }
             )
     return rows

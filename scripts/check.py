@@ -30,8 +30,11 @@ def main():
     pytest_temp = Path(tempfile.gettempdir()) / "sceneweaver-tests" / uuid4().hex[:6]
     pytest_temp.parent.mkdir(parents=True, exist_ok=True)
     npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
+    static_targets = ["src", "tests", "scripts/check.py"]
+    if (ROOT / "scripts/check_environment.py").is_file():
+        static_targets.append("scripts/check_environment.py")
     checks = [
-        ("static", "ruff", ROOT, [sys.executable, "-m", "ruff", "check", "src", "tests", "scripts/check.py"]),
+        ("static", "ruff", ROOT, [sys.executable, "-m", "ruff", "check", *static_targets]),
         ("frontend", "format", ROOT / "apps/web", [npm, "run", "format:check"]),
         (
             "frontend",

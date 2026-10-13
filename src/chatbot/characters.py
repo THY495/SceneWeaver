@@ -197,6 +197,7 @@ def character_router(db, config, runtime, owner):
                             kind="goal",
                             content=goal,
                             source_ids=[event.id],
+                            context_source_ids=[event.id],
                         )
                     )
             runtime.emit(

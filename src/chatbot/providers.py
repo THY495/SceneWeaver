@@ -12,7 +12,9 @@ from sqlalchemy import func, select, text
 from .config import Settings
 from .observability.timing import annotate, measure, measured_slot, record_request, timed, transport_marks
 from .observability.usage import cache_tokens_reported
+from .review_json import repair_actor_review_root_close
 from .runtime import Runtime, StaleTask
+from .schemas import ActorReview
 from .storage import Database, Operation, Task, Usage, now, uid
 
 tracer = trace.get_tracer("continuum.providers")
@@ -33,6 +35,13 @@ class StructuredOutputError(ProviderError):
         super().__init__("模型结构化结果不符合协议。")
         self.answer = answer
         self.errors = errors
+
+
+class EmptyStructuredOutput(ProviderError):
+    """A stopped DeepSeek JSON request returned neither content nor a refusal."""
+
+    def __init__(self):
+        super().__init__("模型未返回有效内容。")
 
 
 def director_error_path(path):
@@ -158,6 +167,77 @@ def estimate_tokens(value) -> int:
     content = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
     nonascii = sum(ord(c) > 127 for c in content)
     return math.ceil((len(content) - nonascii) / 3 + nonascii * 2) + 32
+
+
+def completion_diagnostics(choice):
+    """Counts and normalized categories only; never retain reasoning/refusal text."""
+    reason = choice.get("finish_reason")
+    known = {"stop", "length", "content_filter", "tool_calls", "function_call"}
+    message = choice.get("message") or {}
+    content = message.get("content")
+    reasoning = message.get("reasoning_content")
+    return {
+        "model_completion_finish_reason": reason if isinstance(reason, str) and reason in known
+        else ("missing" if reason is None else "other"),
+        "model_completion_content_chars": len(content) if isinstance(content, str) else 0,
+        "model_completion_empty": not isinstance(content, str) or not content.strip(),
+        "model_completion_reasoning_chars": len(reasoning) if isinstance(reasoning, str) else 0,
+        "model_completion_refusal_present": bool(message.get("refusal")),
+    }
+
+
+def review_output_diagnostics(answer):
+    """Describe an invalid review's shape without retaining keys, values or text.
+
+    This never supplies a verdict or makes a malformed review repairable.
+    A single wrapped object is observed, not unwrapped or approved.
+    """
+    def kind(value):
+        if value is None:
+            return "null"
+        if isinstance(value, bool):
+            return "boolean"
+        if isinstance(value, dict):
+            return "object"
+        if isinstance(value, list):
+            return "array"
+        if isinstance(value, str):
+            return "string"
+        if isinstance(value, int | float):
+            return "number"
+        return "other"
+
+    try:
+        value = json.loads(answer)
+        shape = kind(value)
+    except (ValueError, TypeError, RecursionError):
+        value, shape = None, "invalid_json"
+    result = {"review_output_json_shape": shape}
+    for field in ("accepted", "checks", "issues", "delivery"):
+        result[f"review_output_{field}_kind"] = (
+            kind(value[field]) if field in value else "missing"
+        ) if isinstance(value, dict) else "unavailable"
+    nested = next(iter(value.values())) if isinstance(value, dict) and len(value) == 1 else None
+    result["review_output_single_wrapped_review"] = (
+        isinstance(nested, dict)
+        and isinstance(nested.get("accepted"), bool)
+        and isinstance(nested.get("checks"), list)
+        and isinstance(nested.get("issues"), list)
+        and isinstance(nested.get("delivery"), dict)
+    )
+    return result
+
+
+def chat_request_messages(messages, schema=None):
+    """The exact messages used for both capacity checks and the HTTP request."""
+    request = list(messages)
+    if schema:
+        request.append({
+            "role": "system",
+            "content": "只返回符合下列 JSON Schema 的 JSON 对象，不要 Markdown："
+            + json.dumps(schema.model_json_schema(), ensure_ascii=False),
+        })
+    return request
 
 
 def rates(model):
@@ -399,9 +479,16 @@ class Provider:
             row.reserved = 0
 
     @timed("model.call")
-    async def chat(self, task_id, role, messages, *, max_attempts=2, **kwargs):
+    async def chat(self, task_id, role, messages, *, max_attempts=2, retry_empty_json=False, **kwargs):
         if type(max_attempts) is not int or max_attempts not in {1, 2}:
             raise ValueError("模型请求最多允许一次或两次尝试。")
+        if type(retry_empty_json) is not bool:
+            raise ValueError("Empty JSON retry must be an explicit boolean")
+        recovery_lease = (
+            self.runtime.check(task_id).lease_version
+            if retry_empty_json and role == "role_intent"
+            else None
+        )
         annotate(role=role, task_id=task_id)
         emitted = False
         callback = kwargs.get("on_delta")
@@ -414,8 +501,20 @@ class Provider:
         if callback:
             kwargs["on_delta"] = tracked_delta
         for attempt in range(max_attempts):
+            if recovery_lease is not None:
+                self.runtime.check(task_id, recovery_lease)
             try:
                 return await self._chat_once(task_id, role, messages, **kwargs)
+            except EmptyStructuredOutput:
+                # Experimental, explicit intent-only recovery. The same bounded
+                # attempt budget, request, lease and accounting still apply.
+                # Empty output never becomes a decision or cached approval.
+                if not retry_empty_json or role != "role_intent" or attempt == max_attempts - 1 or emitted:
+                    raise
+                self.runtime.check(task_id)
+                with measure("model.retry_wait") as retry:
+                    retry.mark("empty_json")
+                    await asyncio.sleep(0.5)
             except StructuredOutputError as exc:
                 if role != "actor_review":
                     if role == "acknowledgement" or attempt == max_attempts - 1 or emitted:
@@ -547,16 +646,11 @@ class Provider:
             if not self.config.openrouter_providers.get(model):
                 raise ProviderError("OpenRouter评测必须指定供应商。")
             price = (pricing["input"], pricing["input"], pricing["output"])
-        messages = list(messages)
-        if schema:
-            messages.append(
-                {
-                    "role": "system",
-                    "content": "只返回符合下列 JSON Schema 的 JSON 对象，不要 Markdown："
-                    + json.dumps(schema.model_json_schema(), ensure_ascii=False),
-                }
-            )
-        if estimate_tokens(messages) + max_tokens > self.config.context_hard_tokens:
+        messages = chat_request_messages(messages, schema)
+        input_estimate = estimate_tokens(messages)
+        annotate(estimated_input_tokens=input_estimate, output_reserve_tokens=max_tokens,
+                 context_hard_tokens=self.config.context_hard_tokens)
+        if input_estimate + max_tokens > self.config.context_hard_tokens:
             raise ProviderError("当前工作材料超过上下文预算，请缩小资料范围或问题。")
         # Reserve one execution slot for foreground dialogue.
         background = role not in {"dialogue", "acknowledgement"}
@@ -709,30 +803,65 @@ class Provider:
                                         )
                                     usage = data.get("usage")
                                     choice = data["choices"][0]
+                                    annotate(**completion_diagnostics(choice))
                                     if choice.get("finish_reason") == "length":
                                         raise OutputTruncated("模型达到输出上限，结果未完成；请缩小问题。")
                                     answer = choice["message"].get("content") or ""
                         self.runtime.check(task_id, version)
+                        if not isinstance(answer, str):
+                            raise ProviderError("模型返回正文格式无效。")
                         if not answer.strip():
+                            if (
+                                schema is not None and not on_delta and not thinking and not routed
+                                and not responses_review and self.config.model_provider == "deepseek"
+                                and self.config.api_base.rstrip("/") in {
+                                    "https://api.deepseek.com", "https://api.deepseek.com/v1"
+                                }
+                                and choice.get("finish_reason") == "stop"
+                                and "content" in choice["message"]
+                                and (choice["message"]["content"] is None or isinstance(choice["message"]["content"], str))
+                                and all(
+                                    choice["message"].get(field) is None
+                                    or (isinstance(choice["message"].get(field), str)
+                                        and choice["message"][field] == "")
+                                    for field in ("refusal", "reasoning_content")
+                                )
+                                and "tool_calls" not in choice["message"]
+                                and "function_call" not in choice["message"]
+                            ):
+                                raise EmptyStructuredOutput()
                             raise ProviderError("模型未返回有效内容。")
                         if schema:
                             try:
                                 value = schema.model_validate_json(answer).model_dump()
                             except Exception as exc:
-                                errors = (
-                                    [
-                                        {"path": ".".join(map(str, error["loc"])), "type": error["type"]}
-                                        for error in exc.errors()
-                                    ]
-                                    if hasattr(exc, "errors")
-                                    else [{"path": "", "type": "invalid_json"}]
-                                )
-                                if errors:
-                                    annotate(
-                                        schema_error_type=errors[0]["type"],
-                                        schema_error_path=errors[0]["path"],
+                                if role == "actor_review":
+                                    annotate(**review_output_diagnostics(answer))
+                                repaired = None
+                                if role == "actor_review" and schema is ActorReview:
+                                    with measure("model.local_json_repair"):
+                                        repaired = repair_actor_review_root_close(answer)
+                                        annotate(review_json_repair_kind=(
+                                            "redundant_root_close_after_checks" if repaired is not None
+                                            else "not_applicable"
+                                        ))
+                                if repaired is not None:
+                                    value = schema.model_validate_json(repaired).model_dump()
+                                else:
+                                    errors = (
+                                        [
+                                            {"path": ".".join(map(str, error["loc"])), "type": error["type"]}
+                                            for error in exc.errors()
+                                        ]
+                                        if hasattr(exc, "errors")
+                                        else [{"path": "", "type": "invalid_json"}]
                                     )
-                                raise StructuredOutputError(answer, errors) from None
+                                    if errors:
+                                        annotate(
+                                            schema_error_type=errors[0]["type"],
+                                            schema_error_path=errors[0]["path"],
+                                        )
+                                    raise StructuredOutputError(answer, errors) from None
                         else:
                             value = answer
                         status = "completed"

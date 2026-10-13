@@ -140,6 +140,52 @@ def test_generated_speech_delivery_has_own_call_allowance(app, runtime, db, conf
             assert s.scalar(select(Usage).where(Usage.task_id == delivery.id, Usage.role == "tts"))
 
 
+@pytest.mark.parametrize("interrupt", ["new_input", "pause", "client_stop", "model_change"])
+async def test_active_stream_distinguishes_control_fences_from_configuration_failure(app, runtime, db, config, interrupt):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from chatbot.scene_control import invalidate_scene
+    from chatbot.storage import SceneRecord, VoicePlayback
+
+    async def pcm(value, voice):
+        yield b"\x10\x00" * 20
+        yield b"\x10\x00" * 20
+
+    app.state.voice.pcm = pcm
+    with TestClient(app) as client:
+        story, _, player, task, eid = setup(client, runtime, db, config)
+        pid = prepare(client, player, task, eid).json()["id"]
+        stream = app.state.voice.stream(pid, SimpleNamespace(is_disconnected=AsyncMock(return_value=False)))
+        assert await anext(stream) == b"\x10\x00" * 20
+        if interrupt == "new_input":
+            runtime.submit(player, config.workspace_owner, "等一下", "stream-new-input")
+        elif interrupt == "pause":
+            with db.session.begin() as s:
+                invalidate_scene(s, story, runtime)
+        elif interrupt == "client_stop":
+            response = client.post(f"/api/voice/playbacks/{pid}/receipt",
+                                   json={"seq": 1, "status": "interrupted", "played_samples": 10})
+            assert response.status_code == 200
+        else:
+            config.tts_model = "changed-model"
+        assert [packet async for packet in stream] == []
+        with db.session() as s:
+            row = s.get(VoicePlayback, pid)
+            expected = "failed" if interrupt == "model_change" else "interrupted"
+            assert row.status == expected and not row.stream_done and row.sent_samples == 20
+            if interrupt == "model_change":
+                assert row.timings["error"] == "HTTPException"
+                assert "interrupted_reason" not in row.timings
+            else:
+                assert row.timings["interrupted_reason"] == ("playback_stopped" if interrupt == "client_stop" else "epoch_changed")
+                assert "failure" not in row.timings and "error" not in row.timings
+            assert s.get(SceneRecord, eid).text == "（点头）你好，今晚我们先聊聊。"
+            charges = list(s.scalars(select(Usage).where(Usage.role == "tts")))
+            assert len(charges) == 1 and charges[0].reserved == 0
+            assert charges[0].status == "estimated_" + expected
+
+
 def test_audio_start_returns_scoped_release_only_after_pcm_and_is_idempotent(app, runtime, db, config):
     from chatbot.storage import Observation, Operation, SceneRecord, Story
 

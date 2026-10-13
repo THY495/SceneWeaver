@@ -4,6 +4,7 @@ export class RequestFailure extends Error {
     message: string,
     readonly uncertain: boolean,
     readonly status?: number,
+    readonly code?: string,
   ) {
     super(message)
     this.name = 'RequestFailure'
@@ -30,6 +31,9 @@ export async function requestJSON<T>(url: string, init: RequestInit = {}): Promi
       typeof detail === 'string' ? detail : JSON.stringify(detail),
       mutation && response.status >= 500,
       response.status,
+      typeof detail === 'object' && detail !== null && typeof (detail as { code?: unknown }).code === 'string'
+        ? (detail as { code: string }).code
+        : undefined,
     )
   }
   return value as T

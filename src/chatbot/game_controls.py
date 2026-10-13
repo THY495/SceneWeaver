@@ -4,7 +4,7 @@ import base64
 import re
 
 from fastapi import Depends, HTTPException
-from pydantic import BaseModel, ConfigDict, StrictBool
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from sqlalchemy import select
 
 from .scene_control import invalidate_scene
@@ -17,8 +17,30 @@ class Pause(BaseModel):
     paused: StrictBool
 
 
+class GameVoice(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    voice: str = Field(min_length=1, max_length=200)
+
+
 def install_controls(app, db, config, player_id, scope):
     dependencies = [Depends(app.state.owner_dependency), Depends(scope)]
+
+    @app.put("/api/game/npcs/{npc_id}/voice", dependencies=dependencies)
+    def npc_voice(npc_id: str, body: GameVoice):
+        from .observations import visible_records
+        from .voice import set_actor_voice
+
+        with db.session.begin() as s:
+            player = s.get(Conversation, player_id)
+            actor = s.scalar(select(Conversation).where(Conversation.id == npc_id).with_for_update())
+            if (not player or player.owner_id != config.workspace_owner
+                or not actor or actor.owner_id != player.owner_id or actor.story_id != player.story_id
+                or actor.current_state.get("player") or not actor.current_state.get("profile")
+                or not any(record.actor_id == npc_id and record.kind == "speech"
+                           for record in visible_records(s, player_id))):
+                raise HTTPException(404, "此说话者在当前存档中不可访问。")
+            set_actor_voice(actor, body.voice, config)
+        return {"voice": body.voice}
 
     @app.get("/api/game/session", dependencies=dependencies)
     def session():

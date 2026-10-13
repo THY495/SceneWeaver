@@ -1,0 +1,38 @@
+{
+  "format": "sceneweaver.native-lock.v1",
+  "python": "3.13.9",
+  "platform": "win32-amd64",
+  "files": {
+    "uv.lock": "219a58b4d6a17e4ef5f31c4ce83ad26b19ce31b7aa87c296939b9b5f98ea431d",
+    "prototypes/windows_p0/requirements-native-tools.in": "7098a049c99044fd5f04e639a65cb3efba61fd6e4a9e44eb035a04f20138059a"
+  },
+  "application_constraints": {
+    "dependencies": [
+      "fastapi>=0.115,<1",
+      "uvicorn[standard]>=0.34,<1",
+      "pydantic-settings>=2.7,<3",
+      "sqlalchemy>=2.0,<3",
+      "psycopg[binary,pool]>=3.2,<4",
+      "alembic>=1.14,<2",
+      "pgvector>=0.3,<1",
+      "langgraph>=1.0,<2",
+      "langgraph-checkpoint-postgres>=3.0,<4",
+      "httpx>=0.28,<1",
+      "websockets>=15,<17",
+      "jieba==0.42.1",
+      "pypdf>=5,<7",
+      "python-multipart>=0.0.20,<1",
+      "cryptography>=44,<48",
+      "opentelemetry-api>=1.30,<2",
+      "opentelemetry-sdk>=1.30,<2"
+    ],
+    "requires-python": ">=3.12,<3.14",
+    "build-system": {
+      "requires": [
+        "hatchling"
+      ],
+      "build-backend": "hatchling.build"
+    }
+  },
+  "lock_sha256": "2ad6a92bdba3327253dc70dabbbe34c6ee19c1b51f039aa1053697927b073039"
+}

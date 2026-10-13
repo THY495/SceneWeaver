@@ -205,6 +205,7 @@ def start(s, body, who, config, runtime, *, game_auto_backstage=False):
                     kind="goal",
                     content=goal,
                     source_ids=[event.id],
+                    context_source_ids=[event.id],
                 )
             )
     for i, item in enumerate(recipe.get("knowledge", [])):
@@ -236,6 +237,7 @@ def start(s, body, who, config, runtime, *, game_auto_backstage=False):
                     kind="belief",
                     content=item["text"],
                     source_ids=[record.id],
+                    context_source_ids=[record.id],
                 )
             )
     for i, speech in enumerate(recipe["speech"]):

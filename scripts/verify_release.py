@@ -7,6 +7,7 @@ import hashlib
 import json
 import re
 import subprocess
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,6 +33,7 @@ PUBLIC_MARKDOWN = {
     "CHANGELOG.md",
     "CONTENT_LICENSE.md",
     "docs/acceptance.md",
+    "docs/upgrade.md",
     "examples/stories/README.md",
 }
 PRIVATE_RELEASE_FILES = {"PUSH_TO_GITHUB.md", "scripts/update_release_checkout.py"}
@@ -53,8 +55,16 @@ def main() -> int:
     manifest = json.loads((ROOT / "RELEASE-MANIFEST.json").read_text(encoding="utf-8"))
     expected = manifest["files"]
     errors = []
-    if manifest["version"] != "0.1.0-alpha.2" or manifest["scope"] != "roleplay-source-only":
+    if manifest["version"] != "0.1.0-alpha.3" or manifest["scope"] != "roleplay-source-only":
         errors.append("release identity mismatch")
+    runtime_version = (ROOT / "src/chatbot/version.py").read_text(encoding="utf-8")
+    package_version = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"][
+        "version"
+    ]
+    if f'PUBLIC_VERSION = "{manifest["version"]}"' not in runtime_version:
+        errors.append("runtime version differs from release manifest")
+    if package_version != manifest["version"].replace("-alpha.", "a"):
+        errors.append("package version differs from release manifest")
     actual = included() - {"RELEASE-MANIFEST.json"}
     for relative in sorted(actual | set(expected)):
         if relative.lower().endswith(".md") and relative not in PUBLIC_MARKDOWN:

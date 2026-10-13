@@ -54,7 +54,9 @@ def verify(args):
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
     assert result.returncode == 0, "Frozen desktop failed; inspect this run's backend.log"
-    assert json.loads(smoke.read_text())["bootstrap_redirected"]
+    window = json.loads(smoke.read_text())
+    assert window["bootstrap_redirected"]
+    assert window["authenticated_api_ready"], "Frontend API authorization checks failed"
     controls = list((run / "data").glob("control-*"))
     assert len(controls) == 1
     closed = json.loads((controls[0] / "backend-closed.json").read_text())
@@ -65,11 +67,11 @@ def verify(args):
         assert client.connect_ex(("127.0.0.1", ready["port"])) != 0
     report = {
         "status": "passed_on_developer_host",
-        "window": json.loads(smoke.read_text()),
+        "window": window,
         "backend_normal_close": True,
         "http_port_closed": True,
         "limitations": [
-            "hidden window load/redirect only, no clicks or visual review",
+            "hidden window redirect and frontend API authorization only, no clicks or visual review",
             "existing host WebView2/.NET, no clean-machine validation",
         ],
     }

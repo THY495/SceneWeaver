@@ -1,6 +1,62 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import ts from 'typescript'
+
+const assetSource = ts.transpileModule(
+  await readFile(new URL('../src/imageAssetUsage.ts', import.meta.url), 'utf8'),
+  { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } },
+).outputText
+const { imageAssetUsages } = await import(
+  'data:text/javascript;base64,' + Buffer.from(assetSource).toString('base64')
+)
+const usages = imageAssetUsages(
+  ['background', 'blue', 'smile', 'shared', 'decoration', 'unused'].map((content_hash) => ({ content_hash })),
+  [
+    {
+      id: 'scene',
+      name: '书店',
+      image: 'background',
+      objects: [
+        { id: 'sign', name: '前景标记', sprite: 'decoration' },
+        { id: 'another', name: '另一标记', sprite: 'shared' },
+      ],
+    },
+  ],
+  [
+    {
+      id: 'npc',
+      name: '林梧',
+      image: 'shared',
+      outfits: [
+        {
+          id: 'daily',
+          name: '制服',
+          variants: [
+            { id: 'neutral', name: '常态', sprite: 'blue' },
+            { id: 'smile', name: '微笑', sprite: 'smile' },
+          ],
+        },
+        { id: 'coat', name: '外套', variants: [{ id: 'neutral', name: '常态', sprite: 'shared' }] },
+      ],
+    },
+  ],
+)
+assert.deepEqual(
+  [...usages].filter(([, refs]) => !refs.length).map(([key]) => key),
+  ['unused'],
+)
+assert.equal(usages.get('shared').length, 3)
+assert.equal(new Set(usages.get('shared').map((ref) => ref.referenceId)).size, 3)
+assert.deepEqual(
+  usages.get('smile').map(({ kind, id, name }) => ({ kind, id, name })),
+  [{ kind: 'character', id: 'npc', name: '林梧 / 制服 / 微笑' }],
+)
+assert.equal(usages.get('decoration')[0].purpose, 'object')
+assert.equal(usages.get('background')[0].purpose, 'background')
+assert.equal(
+  imageAssetUsages([], [], [{ id: 'old', name: '旧角色', image: 'legacy' }]).get('legacy').length,
+  1,
+)
 async function module(path, replacements = {}) {
   let source = await readFile(new URL(path, import.meta.url), 'utf8')
   for (const [a, b] of Object.entries(replacements)) source = source.replace(a, b)
@@ -17,6 +73,8 @@ const {
   graphReadiness,
   graphDiagnostics,
   releaseReadiness,
+  releaseDiagnostics,
+  diagnosticWorkspace,
   itemReferences,
   openingRecipientWarnings,
   removeActorFromGraph,
@@ -139,10 +197,12 @@ assert.ok(
 removeActorFromGraph(companionRoute, 'npc')
 assert.deepEqual(companionRoute.edges[0].requires_agreement, [])
 directed.nodes[0].direction.beats[0].role_focus = { npc: '关注自己的选择' }
+directed.nodes[0].direction.beats[0].direct_response_actor = 'npc'
 removeActorFromGraph(directed, 'npc')
 assert.ok(graphDiagnostics(directed).some((issue) => issue.code.startsWith('director-incomplete:')))
 assert.deepEqual(directed.nodes[0].direction.beats[0].participants, [])
 assert.deepEqual(directed.nodes[0].direction.beats[0].role_focus, {})
+assert.equal(directed.nodes[0].direction.beats[0].direct_response_actor, null)
 assert.equal(
   directed.nodes[0].direction.beats.length,
   1,
@@ -192,6 +252,91 @@ scripted.nodes[0].entry_locations[0].location = ''
 assert.ok(graphDiagnostics(scripted).some((issue) => issue.code.startsWith('entry-location:')))
 removeActorFromGraph(scripted, 'npc')
 assert.deepEqual(scripted.nodes[0].entry_locations, [])
+
+// Shipping-only restrictions remain separate from draft editing, and link to
+// the setting that can resolve each restriction rather than an unrelated scene.
+const shippingGraph = {
+  entry: 'meeting',
+  nodes: [
+    { id: 'meeting', title: '幕后会议', mode: 'backstage', participants: ['npc'], observers: ['npc'] },
+    { id: 'arrival', title: '玩家入场', observers: ['player'] },
+  ],
+  edges: [{ id: 'continue', source: 'meeting', target: 'arrival', label: '继续' }],
+}
+const shippingPeople = [{ alias: 'npc', location: '会议室' }]
+const shippingPlayer = { alias: 'player', location: '门厅' }
+assert.deepEqual(releaseDiagnostics(shippingGraph, shippingPeople, shippingPlayer), [])
+const shippingCases = [
+  [
+    'stage',
+    (graph) => {
+      graph.nodes[0].visual_mode = 'cg'
+    },
+  ],
+  [
+    'exits',
+    (graph) => {
+      graph.edges[0].trigger = 'ai'
+    },
+  ],
+  [
+    'exits',
+    (graph) => {
+      graph.edges = []
+    },
+  ],
+  [
+    'rules',
+    (graph) => {
+      graph.nodes[0].participants = ['missing']
+    },
+  ],
+  [
+    'rules',
+    (graph) => {
+      graph.nodes[0].entry_locations = [{ actor: 'player', location: '会议室' }]
+    },
+  ],
+  [
+    'opening',
+    (graph) => {
+      graph.nodes[0].direction = { beats: [{ participants: ['outside'] }] }
+    },
+  ],
+  [
+    'opening',
+    (graph) => {
+      graph.nodes[0].direction = { beats: Array.from({ length: 9 }, () => ({ participants: ['npc'] })) }
+    },
+  ],
+]
+for (const [panel, change] of shippingCases) {
+  const graph = structuredClone(shippingGraph)
+  change(graph)
+  const issues = releaseDiagnostics(graph, shippingPeople, shippingPlayer)
+  assert.equal(issues.length, 1)
+  assert.equal(issues[0].scene, 'meeting')
+  assert.equal(issues[0].panel, panel)
+  assert.equal(diagnosticWorkspace(issues[0]), 'scene')
+  assert.deepEqual(
+    releaseReadiness(graph, shippingPeople, shippingPlayer),
+    issues.map((issue) => issue.message),
+  )
+}
+const laterBackstage = structuredClone(shippingGraph)
+laterBackstage.entry = 'arrival'
+const laterIssue = releaseDiagnostics(laterBackstage, shippingPeople, shippingPlayer)[0]
+assert.equal(laterIssue.scene, 'meeting', 'Locate the unsupported backstage node, not the player entry')
+assert.equal(diagnosticWorkspace(laterIssue), 'graph')
+assert.equal(diagnosticWorkspace({ code: 'detached:meeting' }), 'graph')
+// A compound restriction still uses the original first-failure message, with
+// the first relevant setting selected; changing one setting does not clear all.
+const compound = structuredClone(shippingGraph)
+compound.nodes[0].visual_mode = 'video'
+compound.edges = []
+assert.equal(releaseDiagnostics(compound, shippingPeople, shippingPlayer)[0].panel, 'stage')
+compound.nodes[0].visual_mode = 'stage'
+assert.equal(releaseDiagnostics(compound, shippingPeople, shippingPlayer)[0].panel, 'exits')
 g.edges.push({
   source: 'a',
   target: 'b',

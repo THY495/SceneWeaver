@@ -7,6 +7,13 @@ export function releaseReadiness(
   people: { alias: string; location: string }[] = [],
   player?: { alias: string; location: string },
 ): string[] {
+  return releaseDiagnostics(graph, people, player).map((issue) => issue.message)
+}
+export function releaseDiagnostics(
+  graph?: Narrative | null,
+  people: { alias: string; location: string }[] = [],
+  player?: { alias: string; location: string },
+): AuthoringDiagnostic[] {
   if (!graph) return []
   const backstage = new Map(
     graph.nodes.filter((node) => node.mode === 'backstage').map((node) => [node.id, node]),
@@ -34,7 +41,19 @@ export function releaseReadiness(
       colocated.length !== (node.participants || []).length ||
       colocated.some((alias) => !node.participants?.includes(alias))
     )
-      return [`场景「${node.title}」尚不能在独立游戏中自动运行；目前仅支持入口处同场 NPC 和唯一无条件出口。`]
+      return [
+        {
+          code: 'backstage-release:' + node.id,
+          scene: node.id,
+          panel:
+            (node.visual_mode || 'stage') !== 'stage'
+              ? 'stage'
+              : exits.length !== 1 || (exits[0].trigger || 'manual') !== 'manual' || exits[0].requires_holding
+                ? 'exits'
+                : 'rules',
+          message: `场景「${node.title}」尚不能在独立游戏中自动运行；目前仅支持入口处同场 NPC 和唯一无条件出口。`,
+        },
+      ]
     if (
       node.direction &&
       (node.direction.beats.length > 8 ||
@@ -42,11 +61,27 @@ export function releaseReadiness(
           beat.participants.some((alias) => !node.participants?.includes(alias)),
         ))
     )
-      return [`场景「${node.title}」的幕后 AI 编排最多允许八个段落，参与者须在本场 NPC 中。`]
+      return [
+        {
+          code: 'backstage-direction:' + node.id,
+          scene: node.id,
+          panel: 'opening',
+          message: `场景「${node.title}」的幕后 AI 编排最多允许八个段落，参与者须在本场 NPC 中。`,
+        },
+      ]
     current = exits[0].target
   }
-  if (seen.size !== backstage.size)
-    return ['独立游戏仅支持从入口连续经过的固定幕后场景；互动后的幕后场景还需要自动调度。']
+  if (seen.size !== backstage.size) {
+    const unvisited = [...backstage.keys()].find((id) => !seen.has(id))!
+    return [
+      {
+        code: 'backstage-chain:' + unvisited,
+        scene: unvisited,
+        panel: 'exits',
+        message: '独立游戏仅支持从入口连续经过的固定幕后场景；互动后的幕后场景还需要自动调度。',
+      },
+    ]
+  }
   return []
 }
 export type AuthoringDiagnostic = {
@@ -54,6 +89,9 @@ export type AuthoringDiagnostic = {
   scene: string
   panel: 'opening' | 'rules' | 'exits' | 'stage'
   message: string
+}
+export function diagnosticWorkspace(issue: AuthoringDiagnostic): 'graph' | 'scene' {
+  return issue.code.startsWith('detached:') || issue.code.startsWith('backstage-chain:') ? 'graph' : 'scene'
 }
 export function openingRecipientWarnings(graph?: Narrative | null): AuthoringDiagnostic[] {
   if (!graph) return []
@@ -248,6 +286,7 @@ export function removeActorFromGraph(graph: Narrative | null | undefined, actor:
     for (const beat of node.direction?.beats || []) {
       beat.participants = beat.participants.filter((a) => a !== actor)
       if (beat.role_focus) delete beat.role_focus[actor]
+      if (beat.direct_response_actor === actor) beat.direct_response_actor = null
     }
     if (node.opening) {
       node.opening = node.opening.filter((b) => b.speaker !== actor)

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { NovelPlay } from './NovelPlay'
 import { ServiceReadiness } from './ServiceReadiness'
 import { gameRequest } from './gameRequest'
+import { pauseForMenu } from './gameMenuPause'
 import type { Communication } from './PlayerBar'
 import './game.css'
 import './game-play.css'
@@ -28,6 +29,7 @@ function Game() {
   const [communication, setCommunication] = useState<Communication>({ channel: 'public', addressees: [] })
   const pending = useRef<{ fingerprint: string; id: string } | null>(null)
   const reportedFailures = useRef(new Set<string>())
+  const menuPending = useRef(false)
   useEffect(() => {
     if (!playing || !session) return
     let live = true
@@ -123,12 +125,19 @@ function Game() {
       setPlaying(false)
       return
     }
+    if (!session || menuPending.current) return
+    menuPending.current = true
+    setSending(true)
+    setError('')
     try {
-      await gameRequest('/game/pause', { method: 'PUT', body: JSON.stringify({ paused: true }) })
+      await pauseForMenu(session.id, gameRequest)
       setPlaying(false)
       location.assign('/')
     } catch (e) {
       setError(String(e))
+    } finally {
+      menuPending.current = false
+      setSending(false)
     }
   }
   async function begin() {

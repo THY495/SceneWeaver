@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build --configLoader runner",
     "build:game": "tsc --noEmit && vite build --mode game --configLoader runner",
-    "test": "node tests/stage-transform.mjs && node tests/story-graph-commands.mjs && node tests/audio-preparation.mjs && node tests/voice-queue.mjs && node tests/trace-scope.mjs && node tests/backstage-placement.mjs && node tests/scene-preview-locations.mjs && node tests/stage-reading.mjs && node tests/item-handoff.mjs && node tests/reading-progress.mjs && node tests/reading-store.mjs && node tests/item-feedback.mjs && node tests/request-recovery.mjs && node tests/outfit-model.mjs && node tests/studio-authoring.mjs && node tests/performance-lanes.mjs && node tests/game-bundle.mjs",
+    "test": "node tests/stage-transform.mjs && node tests/story-graph-commands.mjs && node tests/audio-preparation.mjs && node tests/voice-queue.mjs && node tests/game-menu-pause.mjs && node tests/trace-scope.mjs && node tests/backstage-placement.mjs && node tests/scene-preview-locations.mjs && node tests/stage-reading.mjs && node tests/item-handoff.mjs && node tests/reading-progress.mjs && node tests/reading-store.mjs && node tests/item-feedback.mjs && node tests/request-recovery.mjs && node tests/outfit-model.mjs && node tests/studio-authoring.mjs && node tests/direction-authoring.mjs && node tests/performance-lanes.mjs && node tests/game-bundle.mjs",
     "preview": "vite preview --host 127.0.0.1",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/*.mjs\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/*.mjs\""

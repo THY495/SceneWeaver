@@ -197,6 +197,9 @@ class RoleMemory(Base):
     kind: Mapped[str] = mapped_column(String(24))
     content: Mapped[str] = mapped_column(Text)
     source_ids: Mapped[list] = mapped_column(JSONB, default=list)
+    # Quoted evidence anchors stay separate from conservative derivation inputs.
+    # SQL NULL identifies legacy notes whose derivation was never recorded.
+    context_source_ids: Mapped[list | None] = mapped_column(JSONB(none_as_null=True), default=list, nullable=True)
     status: Mapped[str] = mapped_column(String(24), default="active")
     version: Mapped[int] = mapped_column(default=1)
     replaces_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
@@ -496,6 +499,9 @@ class Database:
         # they do not carry the repository's Alembic command-line environment.
         with self.engine.begin() as conn:
             conn.execute(text("ALTER TABLE scene_records ALTER COLUMN seq DROP NOT NULL"))
+            from .memory_dependencies import migrate_dependencies
+
+            migrate_dependencies(conn)
 
     def close(self):
         self.engine.dispose()

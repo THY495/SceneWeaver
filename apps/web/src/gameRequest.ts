@@ -14,6 +14,9 @@ export async function gameRequest<T>(path: string, init: RequestInit = {}): Prom
     target = path.replace('/role/experiments/stories/', '/game/stories/')
   } else if (path.startsWith('/role/presentation/sprites/')) {
     target = path.replace('/role/presentation/sprites/', '/game/assets/')
+  } else if (/^\/voice\/actors\/[^/]+\/profile$/.test(path)) {
+    if (init.method !== 'PUT') throw new Error('不支持此游戏操作。')
+    target = path.replace('/voice/actors/', '/game/npcs/').replace(/\/profile$/, '/voice')
   }
   const headers = new Headers(init.headers)
   headers.set('Content-Type', 'application/json')

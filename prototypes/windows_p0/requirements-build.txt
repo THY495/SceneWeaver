@@ -1,2 +1,2 @@
-pyinstaller==6.22.0
-pydantic==2.12.5
+# Legacy prototype requirements. Native Studio/Game builds use native-build.lock.
+-r requirements-native-tools.in

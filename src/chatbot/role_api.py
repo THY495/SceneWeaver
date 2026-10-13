@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, tuple_
 
 from .agreements import DecisionInput, ProposalInput
+from .memory_dependencies import memory_dependencies, memory_visible
 from .observations import append_record, audience, members, notices, perceive, record_data, visible_records
 from .schemas import CharacterRelationship, ObjectAction, SessionProfile
 from .storage import (
@@ -481,12 +482,13 @@ def role_router(db, config, runtime, owner):
                         "kind": m.kind,
                         "content": m.content,
                         "source_ids": m.source_ids,
+                        "context_source_ids": m.context_source_ids,
                         "status": m.status,
                         "version": m.version,
                         "created_at": m.created_at,
                     }
                     for m in rows
-                    if set(m.source_ids).issubset(valid)
+                    if memory_visible(m, valid)
                 ],
                 "next_before": rows[-1].id if len(rows) == 100 else None,
             }
@@ -553,6 +555,7 @@ def role_router(db, config, runtime, owner):
                 kind=body.kind,
                 content=body.content,
                 source_ids=[event.id],
+                context_source_ids=[event.id],
             )
             s.add(memory)
             invalidate(s, c.story_id)
@@ -563,6 +566,8 @@ def role_router(db, config, runtime, owner):
         with db.session.begin() as s:
             c = actor(s, aid, identity)
             story(s, c.story_id, identity)
+            # Match reflection's actor-before-memory order; invalidation also locks actors.
+            s.refresh(c, with_for_update=True)
             row = s.scalar(
                 select(RoleMemory).where(RoleMemory.id == mid, RoleMemory.actor_id == aid).with_for_update()
             )
@@ -572,6 +577,8 @@ def role_router(db, config, runtime, owner):
                 raise HTTPException(409, "记忆已变化，请刷新后重试。")
             if row.kind == "episode":
                 raise ValueError("原始经历请通过事件删除处理，不能伪装成已完成目标。")
+            if not memory_visible(row, {e.id for e in visible_records(s, aid)}):
+                raise HTTPException(409, "该个人条目的来源依赖不完整，请从有效原记录重新整理。")
             row.status, row.version = body.status, row.version + 1
             append_record(
                 s,
@@ -581,7 +588,8 @@ def role_router(db, config, runtime, owner):
                 observer_ids=[aid],
                 channel="private",
                 dedupe=f"memory:{mid}:{row.version}",
-                payload={"memory_id": mid, "status": body.status},
+                payload={"memory_id": mid, "status": body.status,
+                         "context_source_ids": sorted(memory_dependencies(row))},
             )
             invalidate(s, c.story_id)
             return {"version": row.version}
@@ -689,6 +697,7 @@ def role_router(db, config, runtime, owner):
                     kind="relationship",
                     content=event.text,
                     source_ids=[event.id],
+                    context_source_ids=[event.id],
                     replaces_id=replaced[-1].id if replaced else None,
                 )
             )
@@ -801,6 +810,8 @@ def role_router(db, config, runtime, owner):
                     .limit(8)
                 )
             )
+            visibility = {aid: {e.id for e in visible_records(s, aid)} for aid in observers}
+            goals = [goal for goal in goals if memory_visible(goal, visibility[goal.actor_id])]
             if not goals:
                 return {"task_id": None, "reason": "no_goal"}
             player.epoch += 1
@@ -833,6 +844,7 @@ def role_router(db, config, runtime, owner):
             if not event or event.story_id != sid:
                 raise KeyError("事件不存在")
             records = list(s.scalars(select(SceneRecord).where(SceneRecord.story_id == sid)))
+            memories = list(s.scalars(select(RoleMemory).where(RoleMemory.story_id == sid)))
             deleted = {eid}
             host_ids = (
                 {event.payload["event_id"]}
@@ -840,6 +852,8 @@ def role_router(db, config, runtime, owner):
                 else set()
             )
             while True:
+                invalid_memories = {m.id for m in memories if m.context_source_ids is None
+                    or deleted.intersection(memory_dependencies(m))}
                 expanded = deleted | {
                     r.id
                     for r in records
@@ -849,6 +863,8 @@ def role_router(db, config, runtime, owner):
                         claim.get("source_id") in deleted | host_ids for claim in r.payload.get("claims", [])
                     )
                     or deleted.intersection(r.payload.get("context_source_ids", []))
+                    # Legacy status-change events predate explicit dependency payloads.
+                    or (r.kind == "memory_change" and r.payload.get("memory_id") in invalid_memories)
                 }
                 if expanded == deleted:
                     break
@@ -895,8 +911,9 @@ def role_router(db, config, runtime, owner):
                     if v.get("event_id") not in host_ids
                 }
                 c.current_state = state
-            for m in s.scalars(select(RoleMemory).where(RoleMemory.story_id == sid)):
-                if deleted.intersection(m.source_ids):
+            for m in memories:
+                if (m.context_source_ids is None
+                    or deleted.intersection(set(m.source_ids) | set(m.context_source_ids))):
                     m.status, m.content = "deleted", "[来源已删除]"
             # Suppress old aggregate messages and snapshots as well; no resurrection via another reader.
             if task_ids:

@@ -484,16 +484,24 @@ export function NovelPlay({
   }, [story, unread, awaitingRead, panel, busy, input, voiceEnabled])
   async function toggle() {
     if (!settings || backstage) return
+    const pausing = !settings.paused
+    let confirmed = false
     setWorking(true)
+    if (pausing)
+      window.dispatchEvent(new CustomEvent('role-voice-event', { detail: { sid, kind: 'pause_requested' } }))
     try {
       await request(`/role/stories/${story}/settings`, {
         method: 'PUT',
         body: JSON.stringify({ ...settings, paused: !settings.paused }),
       })
-      if (!settings.paused)
-        window.dispatchEvent(new CustomEvent('role-voice-event', { detail: { sid, kind: 'paused' } }))
+      confirmed = true
+      window.dispatchEvent(
+        new CustomEvent('role-voice-event', { detail: { sid, kind: pausing ? 'paused' : 'resumed' } }),
+      )
       await refreshRef.current()
     } catch (e) {
+      if (pausing && !confirmed)
+        window.dispatchEvent(new CustomEvent('role-voice-event', { detail: { sid, kind: 'pause_failed' } }))
       setFailure(String(e))
     } finally {
       setWorking(false)
@@ -741,6 +749,7 @@ export function NovelPlay({
       <div hidden={panel !== 'menu'} aria-label="语音设置">
         {panel === 'menu' && <ServiceReadiness request={request} />}
         <VoicePanel
+          paused={!!settings?.paused}
           autoReplyEventId={videoActive ? undefined : autoReplyEventId}
           onRelease={(id, notice, event) => {
             if (event) setEvents((old) => old.map((row) => (row.id === id ? event : row)))

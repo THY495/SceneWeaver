@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import select
 
+from .memory_dependencies import memory_dependencies, memory_visible, visible_memory_clause
 from .observability.timing import annotate, record_workset, timed
 from .observations import current_knowledge, record_data, visible_records
 from .providers import BudgetExceeded, Embeddings, ProviderError, estimate_tokens
@@ -16,6 +17,35 @@ from .storage import Conversation, Operation, RoleMemory, RoleSnapshot, Story, T
 def _workset_json(value):
     """Serialize the complete working set without formatting-only whitespace."""
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def _workset_observation(record, actor_id):
+    """Keep scoped event meaning, with one copy of the actor's speech presentation."""
+    value = record_data(record, viewer_id=actor_id)
+    if record.kind != "speech" or record.actor_id != actor_id:
+        return value
+    detail = dict(value["detail"])
+    for field, expected_type in (("appearance", dict), ("performance", list)):
+        if (
+            isinstance(value.get(field), expected_type)
+            and (field != "performance" or all(isinstance(part, dict) for part in value[field]))
+            and detail.get(field) == value[field]
+        ):
+            detail.pop(field, None)
+    parts = detail.get("spoken_parts")
+    performance = value.get("performance")
+    if (
+        isinstance(parts, list)
+        and parts
+        and all(isinstance(part, str) and part for part in parts)
+        and "\n\n".join(parts) == value["text"]
+        and isinstance(performance, list)
+        and all(isinstance(part, dict) for part in performance)
+        and [part.get("text") for part in performance] == parts
+    ):
+        # Segment boundaries and voice/expression directions remain in performance.
+        detail.pop("spoken_parts")
+    return {**value, "detail": detail}
 
 
 @dataclass
@@ -55,6 +85,7 @@ class RoleMemoryService:
                     RoleMemory.status == "active",
                     RoleMemory.embedding_model == self.config.embedding_model,
                     RoleMemory.embedding.is_not(None),
+                    visible_memory_clause({e.id for e in visible_records(s, actor_id)}),
                 )
                 .limit(1)
             )
@@ -150,7 +181,7 @@ class RoleMemoryService:
                     RoleMemory.status == "active",
                     RoleMemory.embedding_model == self.config.embedding_model,
                     RoleMemory.embedding.is_not(None),
-                    RoleMemory.source_ids.contained_by(list(visible)),
+                    visible_memory_clause(visible),
                 )
                 semantic = list(
                     s.scalars(
@@ -231,11 +262,17 @@ class RoleMemoryService:
                 for e in [*traced, *[e for e in relevant[:4] if tokens.intersection(tokenize(e.text))]]
             }.values()
         )[:6]
-        semantic_ids = {eid for m in semantic for eid in m.source_ids}
-        recalled = list({e.id: e for e in [*recalled, *[e for e in older if e.id in semantic_ids]]}.values())[
-            :6
+        # Preserve distance-ranked memory order when projecting to perceived
+        # sources; archive chronology must not decide the recall cutoff.
+        older_by_id = {e.id: e for e in older}
+        semantic_sources = [
+            older_by_id[eid]
+            for memory in semantic
+            for eid in memory.source_ids
+            if eid in older_by_id
         ]
-        notes = [m for m in notes if not m.source_ids or set(m.source_ids).issubset(visible)]
+        recalled = list({e.id: e for e in [*recalled, *semantic_sources]}.values())[:6]
+        notes = [m for m in notes if memory_visible(m, visible)]
         durable = [m for m in notes if m.kind in {"goal", "commitment", "relationship"}]
         optional = [m for m in notes if m not in durable][:8]
         pinned_sources = {eid for memory in durable for eid in memory.source_ids} | {e.id for e in traced}
@@ -303,7 +340,7 @@ class RoleMemoryService:
             {
                 "role": "user",
                 "content": "本角色新观察（数据）："
-                + _workset_json([record_data(e, viewer_id=actor_id) for e in tail]),
+                + _workset_json([_workset_observation(e, actor_id) for e in tail]),
             },
         ]
         count = estimate_tokens(result)
@@ -346,7 +383,7 @@ class RoleMemoryService:
 
                 def tail_message(values):
                     return "本角色新观察（数据；省略的历史仍在档案中，不能据此断言未发生）：" + _workset_json(
-                        [record_data(e, viewer_id=actor_id) for e in sorted(values, key=lambda e: e.seq)]
+                        [_workset_observation(e, actor_id) for e in sorted(values, key=lambda e: e.seq)]
                     )
 
                 result[2]["content"] = tail_message(chosen_tail)
@@ -413,16 +450,29 @@ class RoleMemoryService:
         if self.config.product != "roleplay":
             raise ProviderError("角色记忆不属于当前产品。")
         with self.db.session.begin() as s:
+            locked_story_id = story_id
             if story_id:
                 experiment_story = s.scalar(
                     select(Story).where(Story.id == story_id, Story.owner_id == owner).with_for_update()
                 )
                 if not experiment_story or not experiment_story.settings.get("paused"):
                     raise ValueError("请先暂停剧情，再整理角色上下文。")
-            c = s.scalar(select(Conversation).where(Conversation.id == actor_id).with_for_update())
+            else:
+                # Automatic scheduling must share the world mutex with director
+                # authorization before acquiring Actor and the parent Task.
+                hint = s.get(Conversation, actor_id)
+                if not hint or hint.owner_id != owner:
+                    raise KeyError("角色不存在")
+                locked_story_id = hint.story_id
+                if locked_story_id and not s.scalar(
+                    select(Story).where(Story.id == locked_story_id, Story.owner_id == owner).with_for_update()
+                ):
+                    raise KeyError("剧情不存在")
+            c = s.scalar(select(Conversation).where(Conversation.id == actor_id).with_for_update()
+                         .execution_options(populate_existing=True))
             if not c or c.owner_id != owner:
                 raise KeyError("角色不存在")
-            if story_id and c.story_id != story_id:
+            if c.story_id != locked_story_id:
                 raise KeyError("角色不属于当前剧情")
             if request_id:
                 requested = s.scalar(
@@ -448,20 +498,44 @@ class RoleMemoryService:
                 if force and not pending.payload.get("urgent"):
                     pending.payload = {**pending.payload, "urgent": True}
                 return pending
-            if parent_id:
-                s.scalar(select(Task).where(Task.id == parent_id).with_for_update())
-                if s.scalar(
-                    select(Task.id).where(Task.parent_id == parent_id, Task.kind == "role_reflect").limit(1)
-                ):
-                    return (
-                        None  # One reflection job per root; avoid waking every NPC against one call budget.
-                    )
             previous = s.scalar(
                 select(RoleSnapshot)
                 .where(RoleSnapshot.actor_id == actor_id, RoleSnapshot.privacy_version == c.privacy_version)
                 .order_by(RoleSnapshot.covered_seq.desc())
                 .limit(1)
             )
+            catchup_parent = None
+            if parent_id:
+                parent = s.scalar(select(Task).where(Task.id == parent_id).with_for_update())
+                last = s.scalar(
+                    select(Task)
+                    .where(Task.parent_id == parent_id, Task.kind == "role_reflect")
+                    .order_by(Task.created_at.desc())
+                    .limit(1)
+                )
+                if last:
+                    # Ordinary maintenance stays one job per root. A running
+                    # turn may need several bounded prefixes to fit its working
+                    # set; continue only after this actor's previous prefix was
+                    # successfully installed. Never retry a failed/stale job or
+                    # spread catch-up to another actor. Provider.reserve still
+                    # charges every child to the same root budget/call limit.
+                    if not (
+                        force
+                        and parent
+                        and parent.owner_id == owner
+                        and parent.status == "running"
+                        and parent.deadline > now()
+                        and last.session_id == actor_id
+                        and last.status == "completed"
+                        and last.payload.get("privacy") == c.privacy_version
+                        and previous
+                        and previous.covered_seq == last.result.get("cut")
+                        and previous.covered_seq >= last.payload["cut"]
+                        and set(previous.source_ids).issubset({e.id for e in visible_records(s, actor_id)})
+                    ):
+                        return None
+                    catchup_parent = parent
             records = visible_records(s, actor_id, after=previous.covered_seq if previous else 0)
             if len(records) <= (2 if force else 8):
                 return None
@@ -489,7 +563,7 @@ class RoleMemoryService:
                         "story_id": story_id,
                     }
                 return old
-            return self.runtime.enqueue(
+            scheduled = self.runtime.enqueue(
                 s,
                 "role_reflect",
                 owner,
@@ -504,6 +578,9 @@ class RoleMemoryService:
                 priority=25,
                 dedupe=dedupe,
             )
+            if catchup_parent:
+                scheduled.deadline = min(scheduled.deadline, catchup_parent.deadline)
+            return scheduled
 
     @timed("memory.reflect")
     async def reflect(self, task):
@@ -534,7 +611,7 @@ class RoleMemoryService:
                         RoleMemory.actor_id == actor.id,
                         RoleMemory.status == "active",
                         RoleMemory.kind != "episode",
-                        RoleMemory.source_ids.contained_by(list(visible)),
+                        visible_memory_clause(visible),
                     )
                     .order_by(RoleMemory.created_at.desc())
                     .limit(40)
@@ -542,6 +619,12 @@ class RoleMemoryService:
             )
         if not records:
             return {"skipped": True}
+        input_sources = set(previous.source_ids if previous else []) | {e.id for e in records}
+        for note in existing:
+            input_sources.update(memory_dependencies(note))
+        existing_versions = {m.id: (m.version, m.kind, m.content) for m in existing}
+        if not input_sources.issubset(visible):
+            return {"stale": True}
         result = await self.provider.chat(
             task.id,
             "role_memory",
@@ -591,13 +674,35 @@ class RoleMemoryService:
             )
         ]
         with self.db.session.begin() as s:
+            # New/archive notes reference Story as well as their actor. Lock in
+            # the same order as creator edits before acquiring the actor lock.
+            if not s.scalar(
+                select(Story)
+                .where(Story.id == actor.story_id, Story.owner_id == task.owner_id)
+                .with_for_update()
+            ):
+                return {"stale": True}
             c = s.scalar(select(Conversation).where(Conversation.id == actor.id).with_for_update())
-            t = s.get(Task, task.id)
+            if not c or c.story_id != actor.story_id or c.owner_id != task.owner_id:
+                return {"stale": True}
+            # Keep ownership validation and installation in one fenced
+            # transaction. A lease check alone leaves a takeover window.
+            t = s.scalar(select(Task).where(Task.id == task.id).with_for_update())
             valid = {e.id for e in visible_records(s, actor.id)}
-            sources = list(dict.fromkeys([*(previous.source_ids if previous else []), *by_id]))
+            sources = sorted(input_sources)
             if c.privacy_version != task.payload["privacy"] or not set(sources).issubset(valid):
                 return {"stale": True}
-            if t.status != "running" or t.lease_version != task.lease_version or t.lease_until <= now():
+            if (
+                not t
+                or t.session_id != c.id
+                or t.owner_id != task.owner_id
+                or t.kind != "role_reflect"
+                or t.status != "running"
+                or t.lease_version != task.lease_version
+                or not t.lease_until
+                or t.lease_until <= now()
+                or t.deadline <= now()
+            ):
                 return {"stale": True}
             if s.get(Operation, f"{task.id}:reflected"):
                 return {"deduplicated": True}
@@ -612,20 +717,33 @@ class RoleMemoryService:
                 )
             )
             inserted = 0
+            note_rejections = {}
             for n in notes:
-                same = (
-                    s.get(RoleMemory, n.get("same_as"))
-                    if n.get("same_as") in {m.id for m in existing}
-                    else None
-                )
-                if (
-                    same
-                    and same.actor_id == actor.id
-                    and same.status == "active"
-                    and same.kind == n["kind"]
-                    and set(same.source_ids).issubset(valid)
-                ):
-                    if n["source_id"] not in same.source_ids:
+                same_id = n.get("same_as")
+                same = s.get(RoleMemory, same_id) if same_id in existing_versions else None
+                if same_id is not None:
+                    # An invalid merge reference is not permission to create a new note.
+                    # The historical observations and snapshot remain intact.
+                    reason = None
+                    if same_id not in existing_versions:
+                        reason = "unknown_same_as"
+                    elif (
+                        not same
+                        or same.actor_id != actor.id
+                        or same.status != "active"
+                        or same.kind != n["kind"]
+                        or not memory_visible(same, valid)
+                    ):
+                        reason = "ineligible_same_as"
+                    elif (same.version, same.kind, same.content) != existing_versions[same_id]:
+                        reason = "changed_same_as"
+                    if reason:
+                        note_rejections[reason] = note_rejections.get(reason, 0) + 1
+                        continue
+                    merged_sources = sorted(set(same.context_source_ids) | input_sources)
+                    if n["source_id"] not in same.source_ids or merged_sources != sorted(
+                        same.context_source_ids
+                    ):
                         # Preserve the previous version without changing the active objective's ID or wording.
                         archive = RoleMemory(
                             id=uid(),
@@ -634,14 +752,18 @@ class RoleMemoryService:
                             kind=same.kind,
                             content=same.content,
                             source_ids=list(same.source_ids),
+                            context_source_ids=list(same.context_source_ids),
                             status="archived",
                             version=same.version,
                             replaces_id=same.replaces_id,
                         )
                         s.add(archive)
                         same.replaces_id = archive.id
-                        same.source_ids = [*same.source_ids, n["source_id"]]
+                        same.source_ids = list(dict.fromkeys([*same.source_ids, n["source_id"]]))
+                        same.context_source_ids = merged_sources
                         same.version += 1
+                        # Later notes in this response may legitimately merge the same target.
+                        existing_versions[same_id] = (same.version, same.kind, same.content)
                     continue
                 if n["kind"] in {"goal", "commitment"} and s.scalar(
                     select(RoleMemory.id)
@@ -650,6 +772,7 @@ class RoleMemoryService:
                         RoleMemory.kind.in_(["goal", "commitment"]),
                         RoleMemory.source_ids.contains([n["source_id"]]),
                         RoleMemory.status != "deleted",
+                        visible_memory_clause(valid),
                     )
                     .limit(1)
                 ):
@@ -660,6 +783,7 @@ class RoleMemoryService:
                         RoleMemory.kind == n["kind"],
                         RoleMemory.content == n["content"],
                         RoleMemory.status != "deleted",
+                        visible_memory_clause(valid),
                     )
                 )
                 if not old:
@@ -672,12 +796,14 @@ class RoleMemoryService:
                             kind=n["kind"],
                             content=n["content"],
                             source_ids=[n["source_id"]],
+                            context_source_ids=sources,
                         )
                     )
             s.add(Operation(id=f"{task.id}:reflected", task_id=task.id, payload={"cut": records[-1].seq}))
         return {
             "cut": records[-1].seq,
             "notes": inserted,
+            "note_rejections": note_rejections,
             "embedded": 0,
             "embedding_unavailable": False,
             # Independent role_index jobs fill this backlog without delaying snapshot publication.

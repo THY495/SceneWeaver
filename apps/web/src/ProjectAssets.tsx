@@ -1,8 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Sprite } from './CharacterStage'
+import {
+  imageAssetUsages,
+  type SceneImageTarget,
+  type CharacterImageTarget,
+  type ImageUsage,
+} from './imageAssetUsage'
 
-type Target = { id: string; name: string; image?: string | null }
-type Usage = { kind: 'scene' | 'character'; id: string; name: string }
+type Usage = ImageUsage
 export type ImageAsset = { id: string; name: string; kind: 'png'; content_hash: string }
 
 export function ProjectAssets({
@@ -18,11 +23,11 @@ export function ProjectAssets({
   catalog: ImageAsset[]
   onUploadState: (busy: boolean) => void
   onRegister: (hash: string, name: string) => void
-  scenes: Target[]
-  characters: Target[]
+  scenes: SceneImageTarget[]
+  characters: CharacterImageTarget[]
   request: (path: string, init?: RequestInit) => Promise<unknown>
   onLocate: (usage: Usage) => void
-  onApply: (usage: Usage, image: string) => void
+  onApply: (usage: Pick<Usage, 'kind' | 'id' | 'name'>, image: string) => void
 }) {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState('all')
@@ -40,25 +45,21 @@ export function ProjectAssets({
       mounted.current = false
     }
   }, [])
-  const assets = new Map<string, Usage[]>()
-  catalog.forEach((a) => assets.set(a.content_hash, []))
+  const assets = imageAssetUsages(catalog, scenes, characters)
   const assetName = (id: string, uses: Usage[]) =>
     catalog.find((a) => a.content_hash === id)?.name || uses.map((u) => u.name).join('、') || '未命名图片'
-  for (const [type, entries] of [
-    ['scene', scenes],
-    ['character', characters],
-  ] as const) {
-    for (const item of entries) {
-      if (!item.image) continue
-      assets.set(item.image, [
-        ...(assets.get(item.image) || []),
-        { kind: type, id: item.id, name: item.name },
-      ])
-    }
-  }
   const matches = [...assets.entries()].filter(
     ([id, uses]) =>
-      (kind === 'all' || (kind === 'unused' ? !uses.length : uses.some((u) => u.kind === kind))) &&
+      (kind === 'all' ||
+        (kind === 'unused'
+          ? !uses.length
+          : uses.some((u) =>
+              kind === 'scene'
+                ? u.purpose === 'background'
+                : kind === 'object'
+                  ? u.purpose === 'object'
+                  : u.kind === kind,
+            ))) &&
       `${id} ${assetName(id, uses)} ${uses.map((u) => u.name).join(' ')}`
         .toLocaleLowerCase()
         .includes(query.trim().toLocaleLowerCase()),
@@ -140,6 +141,7 @@ export function ProjectAssets({
               <option value="unused">未使用图片</option>
               <option value="scene">场景背景</option>
               <option value="character">角色立绘</option>
+              <option value="object">物品与装饰</option>
             </select>
           </label>
         </div>
@@ -161,7 +163,7 @@ export function ProjectAssets({
                     id={id}
                     name={assetName(id, references)}
                     request={request}
-                    background={references.some((u) => u.kind === 'scene')}
+                    background={references.some((u) => u.purpose === 'background')}
                   />
                   <span>{assetName(id, references)}</span>
                   <small>{references.length} 处引用</small>
@@ -197,7 +199,7 @@ export function ProjectAssets({
               <code>{selected}</code>
               <ul>
                 {uses.map((usage) => (
-                  <li key={`${usage.kind}:${usage.id}`}>
+                  <li key={usage.referenceId}>
                     <button onClick={() => onLocate(usage)}>
                       {usage.kind === 'scene' ? '定位场景' : '定位角色'}：{usage.name}
                     </button>

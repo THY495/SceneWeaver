@@ -248,7 +248,9 @@ async def test_main_wins_before_ack_release(app, runtime, db, config, fake):
             intent={"act": "speak"},
             spoken_parts=["你说吧。"],
         )
-        assert c.post(f"/api/voice/playbacks/{p['id']}/start", json={}).status_code == 409
+        rejected = c.post(f"/api/voice/playbacks/{p['id']}/start", json={})
+        assert rejected.status_code == 409
+        assert rejected.json()["detail"]["code"] == "ack_superseded"
         with db.session() as s:
             assert not s.scalar(select(RoleMemory).where(RoleMemory.source_ids.contains([row.id])))
 
@@ -265,6 +267,48 @@ async def test_ack_invalidated_by_new_input(app, runtime, db, config, fake):
         assert r.status_code in {404, 409}
         with db.session() as s:
             assert not s.scalar(select(RoleMemory).where(RoleMemory.source_ids.contains([row.id])))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cause", ["new_input", "redacted"])
+async def test_streaming_private_ack_new_epoch_is_interrupted_not_failed(app, runtime, db, config, fake, cause):
+    from chatbot.storage import Usage, VoicePlayback
+
+    class Connected:
+        async def is_disconnected(self):
+            return False
+
+    with TestClient(app) as c:
+        _, _, player, task, row = await candidate(c, runtime, db, config, fake)
+        response = c.post(
+            f"/api/voice/sessions/{player}/playbacks",
+            json={"request_id": "private-stream", "event_id": row.id, "epoch": task.epoch, "chunk_index": 0},
+        )
+        assert response.status_code == 200
+        pid = response.json()["id"]
+        stream = app.state.voice.stream(pid, Connected())
+        assert await anext(stream)
+        if cause == "new_input":
+            runtime.submit(player, config.workspace_owner, "先换个话题", "new-epoch")
+        else:
+            with db.session.begin() as session:
+                session.get(SceneRecord, row.id).redacted = True
+        assert await anext(stream, None) is None
+        with db.session() as session:
+            playback = session.get(VoicePlayback, pid)
+            if cause == "new_input":
+                assert playback.status == "interrupted"
+                assert playback.timings["interrupted_reason"] == "epoch_changed"
+                assert "failure" not in playback.timings
+            else:
+                assert playback.status == "failed"
+                assert playback.timings["error"] == "HTTPException"
+                assert "interrupted_reason" not in playback.timings
+            assert playback.sent_samples > 0 and not playback.stream_done
+            assert session.get(SceneRecord, row.id).kind == "ack_candidate"
+            assert session.get(SceneRecord, row.id).seq is None
+            charges = list(session.scalars(select(Usage).where(Usage.role == "tts")))
+            assert charges and all(charge.reserved == 0 for charge in charges)
 
 
 @pytest.mark.asyncio

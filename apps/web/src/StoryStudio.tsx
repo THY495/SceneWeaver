@@ -14,9 +14,11 @@ import type { QuickResource } from './StudioQuickCreate'
 import { defaultTransform } from './stageTransform'
 import {
   graphDiagnostics,
+  diagnosticWorkspace,
+  type AuthoringDiagnostic,
   itemReferences,
   openingRecipientWarnings,
-  releaseReadiness,
+  releaseDiagnostics,
   removeActorFromGraph,
   transitionWarnings,
 } from './authoringValidation'
@@ -159,6 +161,12 @@ export function StoryStudio({
     revision: number
   } | null>(null)
   const [selectedCharacter, setSelectedCharacter] = useState('')
+  function openDiagnostic(issue: AuthoringDiagnostic) {
+    setSelectedScene(issue.scene)
+    sceneCursor.current = issue.scene
+    setDiagnosticFocus({ scene: issue.scene, panel: issue.panel, revision: Date.now() })
+    setStep(diagnosticWorkspace(issue) === 'graph' ? 9 : 5)
+  }
   const resume = useRef(returnPosition)
   async function refresh() {
     try {
@@ -595,9 +603,9 @@ export function StoryStudio({
     ...transitionWarnings(recipe?.narrative, recipe?.player.alias),
     ...openingRecipientWarnings(recipe?.narrative),
   ]
-  const releaseIssues = releaseReadiness(recipe?.narrative, recipe?.people, recipe?.player)
+  const releaseIssues = releaseDiagnostics(recipe?.narrative, recipe?.people, recipe?.player)
   const issues = [...basicIssues, ...graphIssues.map((issue) => issue.message)]
-  const buildIssues = [...issues, ...releaseIssues]
+  const buildIssues = [...issues, ...releaseIssues.map((issue) => issue.message)]
   return (
     <section className="story-studio" aria-label="故事工作室">
       <header className="studio-header">
@@ -733,6 +741,7 @@ export function StoryStudio({
                 <div hidden={step !== 9}>
                   <Suspense fallback={<p>正在加载故事图…</p>}>
                     <StoryGraphWorkspace
+                      focus={step === 9 ? diagnosticFocus : null}
                       graph={recipe.narrative}
                       player={recipe.player.alias}
                       request={request}
@@ -1384,12 +1393,14 @@ export function StoryStudio({
                         id: n.id,
                         name: n.title,
                         image: n.background,
+                        objects: n.objects,
                       })) || []
                     }
                     characters={recipe.people.map((p) => ({
                       id: p.alias,
                       name: p.profile.name,
                       image: p.presentation?.base_sprite,
+                      outfits: p.presentation?.outfits,
                     }))}
                     request={request}
                     onLocate={(usage) => {
@@ -1447,19 +1458,8 @@ export function StoryStudio({
                     {graphIssues.map((issue) => (
                       <div className="studio-error" key={issue.code}>
                         <p>{issue.message}</p>
-                        <button
-                          onClick={() => {
-                            setSelectedScene(issue.scene)
-                            sceneCursor.current = issue.scene
-                            setDiagnosticFocus({
-                              scene: issue.scene,
-                              panel: issue.panel,
-                              revision: Date.now(),
-                            })
-                            setStep(issue.code.startsWith('detached:') ? 9 : 5)
-                          }}
-                        >
-                          {issue.code.startsWith('detached:') ? '打开故事图连线' : '定位到问题设定'}
+                        <button onClick={() => openDiagnostic(issue)}>
+                          {diagnosticWorkspace(issue) === 'graph' ? '打开故事图连线' : '定位到问题设定'}
                         </button>
                       </div>
                     ))}
@@ -1468,26 +1468,18 @@ export function StoryStudio({
                         <p>
                           {issue.panel === 'opening' ? '开场核对' : '转场核对'}：{issue.message}
                         </p>
-                        <button
-                          onClick={() => {
-                            setSelectedScene(issue.scene)
-                            sceneCursor.current = issue.scene
-                            setDiagnosticFocus({
-                              scene: issue.scene,
-                              panel: issue.panel,
-                              revision: Date.now(),
-                            })
-                            setStep(5)
-                          }}
-                        >
+                        <button onClick={() => openDiagnostic(issue)}>
                           {issue.panel === 'opening' ? '查看开场设置' : '查看出口设置'}
                         </button>
                       </div>
                     ))}
                     {releaseIssues.map((issue) => (
-                      <p className="studio-error" key={issue}>
-                        {issue}
-                      </p>
+                      <div className="studio-error" key={issue.code}>
+                        <p>{issue.message}</p>
+                        <button onClick={() => openDiagnostic(issue)}>
+                          {diagnosticWorkspace(issue) === 'graph' ? '打开故事图连线' : '定位到发行设置'}
+                        </button>
+                      </div>
                     ))}
                     {recipe.people.map((p) => (
                       <article className="studio-person" key={p.alias}>

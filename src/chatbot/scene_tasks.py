@@ -5,6 +5,7 @@ import json
 
 from sqlalchemy import select
 
+from .memory_dependencies import visible_memory_clause
 from .observations import members, visible_records
 from .storage import Conversation, RoleMemory, SceneRecord, Story, Task, now
 
@@ -46,7 +47,7 @@ def opportunities(s, actor, records):
                 RoleMemory.actor_id == actor.id,
                 RoleMemory.kind.in_(["goal", "commitment"]),
                 RoleMemory.status == "active",
-                RoleMemory.source_ids.contained_by(list(valid_ids)),
+                visible_memory_clause(valid_ids),
             )
             .order_by(RoleMemory.created_at, RoleMemory.id)
             .limit(8)

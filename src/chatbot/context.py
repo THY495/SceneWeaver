@@ -2,6 +2,7 @@ import json
 
 from sqlalchemy import select
 
+from .memory_dependencies import visible_memory_clause
 from .observability.timing import timed
 from .product_boundary import has_role_state
 from .providers import ProviderError, estimate_tokens
@@ -120,7 +121,7 @@ class ContextManager:
                             RoleMemory.actor_id == c.id,
                             RoleMemory.kind != "episode",
                             RoleMemory.status == "active",
-                            RoleMemory.source_ids.contained_by(list(visible)),
+                            visible_memory_clause(visible),
                         )
                         .order_by(RoleMemory.created_at.desc())
                         .limit(30)

@@ -44,6 +44,19 @@ def test_object_mutation_cannot_hide_in_free_stage_performance():
     assert not unexecuted_stage_object_action("我提议稍后把便条递给沈舟。")
 
 
+@pytest.mark.parametrize(
+    "direction",
+    ["（放下手中的笔，目光停在访客脸上）", "（手中的价签捏皱了一角）"],
+)
+def test_held_prop_stage_direction_recognizes_hand_variants(direction):
+    assert unexecuted_stage_object_action(direction + "我先等消息。")
+
+
+def test_hand_variant_keeps_non_object_performance_free():
+    assert not unexecuted_stage_object_action("（放下手中的活儿，抬头看他）请说。")
+    assert not unexecuted_stage_object_action("（她把手放下，目光停在访客脸上）我听见了。")
+
+
 def test_semantic_diagnostics_preserve_rejection_and_never_record_free_text():
     check = {
         "supported": False,
@@ -100,6 +113,71 @@ def test_claim_diagnostics_report_all_causes_without_source_contents():
     assert claim_issues({"text": "你说“另一句话”", "claims": []}, sources, observations, "原话") == [
         {"code": "recalled_quote_mismatch"}
     ]
+
+
+def test_history_quote_repair_links_only_exact_claims_to_authorized_sources():
+    text = "我保留的是“管理员转述的钥匙在柜中”这个说法，尚未核实。"
+    claim = {"text": text, "source_id": "heard", "quote": "钥匙在柜中；只是转述。", "mode": "reported"}
+    speech = {"text": text, "claims": [claim]}
+    sources = {"heard": claim["quote"], "private": "未提供给角色的另一段话"}
+    question = "关于这条说法呢？"
+    issues = claim_issues(speech, sources, [], question)
+    assert issues == [{"code": "recalled_quote_mismatch"}]
+    assert citation_repair_sources(speech, sources, issues, question) == {
+        "heard": {"text": claim["quote"], "excerpt_truncated": False}
+    }
+    assert claim_issues(speech, sources, [], question) == issues
+    # No broad source search, implicit quote approval, or unrelated claim match.
+    assert citation_repair_sources(speech, {}, issues, question) == {}
+    assert citation_repair_sources(speech, sources, issues, "你好") == {}
+    for changed in (
+        {"text": "不在正文中"},
+        {"quote": "错误"},
+        {"quote": " "},
+        {"source_id": "missing"},
+        {"text": "尚未核实。"},
+    ):
+        assert (
+            citation_repair_sources({**speech, "claims": [{**claim, **changed}]}, sources, issues, question)
+            == {}
+        )
+    assert citation_repair_sources({**speech, "claims": []}, sources, issues, question) == {}
+
+
+def test_history_quote_repair_keeps_shared_source_count_and_excerpt_bounds():
+    claims = [
+        {"text": f"“概括{i}”", "source_id": f"s{i}", "quote": f"原文{i}", "mode": "reported"}
+        for i in range(6)
+    ]
+    speech = {"text": "，".join(c["text"] for c in claims), "claims": claims}
+    sources = {f"s{i}": f"原文{i}" + "字" * 5000 for i in range(6)}
+    sources["private"] = "另一个角色的秘密"
+    result = citation_repair_sources(speech, sources, [{"code": "recalled_quote_mismatch"}], "原话是什么")
+    assert set(result) == {f"s{i}" for i in range(4)}
+    assert all(len(row["text"]) == 4000 and row["excerpt_truncated"] for row in result.values())
+
+
+def test_history_quote_repair_does_not_expand_partial_hearing_or_choose_attribution():
+    text = "你说“钥匙在柜里，暗号一二三”。"
+    speech = {
+        "text": text,
+        "claims": [{"text": text, "source_id": "heard", "quote": "钥匙在柜中", "mode": "reported"}],
+    }
+    # Only the perceived fragment belongs to this actor's authorized map.
+    sources = {"heard": "钥匙在柜中"}
+    issues = claim_issues(speech, sources, [], "你的原话是什么")
+    assert citation_repair_sources(speech, sources, issues, "你的原话是什么") == {
+        "heard": {"text": "钥匙在柜中", "excerpt_truncated": False}
+    }
+    assert claim_issues(speech, sources, [], "你的原话是什么") == issues
+    other = {"text": text, "source_id": "second", "quote": "有人说柜中可能有钥匙", "mode": "reported"}
+    sources["second"] = other["quote"]
+    speech["claims"].append(other)
+    assert set(citation_repair_sources(speech, sources, issues, "你的原话是什么")) == {"heard", "second"}
+    speech["text"] = "你说“钥匙在柜中”。"
+    speech["claims"] = []
+    assert not invalid_recalled_quotes(speech["text"], sources, "你的原话是什么")
+    assert citation_repair_sources(speech, sources, [], "你的原话是什么") == {}
 
 
 def test_conditional_notice_cannot_ground_asserted_nonreceipt():

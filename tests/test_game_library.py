@@ -5,6 +5,77 @@ from chatbot.api import create_app
 from chatbot.game_library import create_game_library
 
 
+@pytest.mark.parametrize("fixed_opening", [False, True], ids=["scene-text", "fixed-closing"])
+def test_ending_save_completion_timing_and_library_reopen(db, config, fake, tmp_path, fixed_opening):
+    import asyncio
+    import json
+
+    from chatbot.experiment_templates import template
+    from chatbot.game_seed import load_game_seed
+
+    config.product = "roleplay"
+    recipe = template("partial-hearing")
+    node = dict(id="end", title="归航", ending=True, observers=["player"])
+    if fixed_opening:
+        node["opening"] = [dict(id="last", kind="narration", text="渡船驶离码头。故事结束。")]
+    else:
+        node["text"] = "渡船驶离码头。故事结束。"
+    recipe["narrative"] = dict(entry="end", nodes=[node], edges=[])
+    package = tmp_path / "ending.story.json"
+    package.write_text(
+        json.dumps(dict(format="sceneweaver.story.v3", recipe=recipe, assets={}, documents={})), "utf-8"
+    )
+    source = asyncio.run(load_game_seed(db, config, package))
+    web = tmp_path / "web"
+    (web / "assets").mkdir(parents=True)
+    (web / "game.html").write_text("Game", "utf-8")
+
+    def build():
+        return create_game_library(config, db, fake, source_story_id=source, game_web_dir=web)
+
+    with TestClient(build()) as client:
+        assert client.post("/api/runtime/check").status_code == 200
+        created = client.post("/api/game/saves", json={"request_id": "ending", "label": "归航"})
+        assert created.status_code == 201, created.text
+        player = created.json()["id"]
+        prefix = f"/runs/{player}"
+        snapshot_path = prefix + f"/api/role/players/{player}/snapshot"
+        before = client.get(snapshot_path).json()
+        assert created.json()["finished"] is (not fixed_opening)
+        if fixed_opening:
+            assert before["frame"]["execution"]["phase"] == "opening"
+            assert before["frame"]["finished_at"] is None
+            assert client.get("/api/game/library").json()["saves"][0]["finished"] is False
+            assert client.put(prefix + "/api/game/pause", json={"paused": False}).status_code == 200
+            path = prefix + f"/api/game/stories/{before['story_id']}/narrative/advance"
+            body = dict(request_id="finish", node_id="end", expected_version=1)
+            response = client.post(path, json=body)
+            assert response.status_code == 200, response.text
+            assert response.json()["execution"]["phase"] == "finished"
+            assert client.post(path, json=body).json() == response.json()
+        else:
+            assert before["frame"]["finished_at"]
+            assert "execution" not in before["frame"]
+        finished = client.get(snapshot_path).json()
+        assert finished["frame"]["finished_at"]
+        assert not finished["interaction"]["allowed"]
+        catalogue = client.get("/api/game/library").json()
+        assert catalogue["saves"][0]["id"] == player and catalogue["saves"][0]["finished"] is True
+        assert (
+            client.post(
+                prefix + f"/api/sessions/{player}/messages",
+                json={"content": "继续", "client_message_id": "after-ending"},
+            ).status_code
+            == 409
+        )
+        assert client.get("/api/role/projects").status_code == 404
+    # Recreating the library proves persisted state, not a Windows process restart.
+    with TestClient(build()) as reopened:
+        assert reopened.get("/api/game/library").json() == catalogue
+        assert reopened.get(snapshot_path).json()["frame"]["finished_at"] == finished["frame"]["finished_at"]
+    assert fake.calls == []  # Only the local readiness fixture was consulted.
+
+
 @pytest.mark.parametrize("deep", [False, True])
 def test_library_new_games_have_independent_routes_and_survive_host_restart(db, config, fake, tmp_path, deep):
     config.product = "roleplay"

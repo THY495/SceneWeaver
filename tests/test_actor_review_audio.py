@@ -301,7 +301,12 @@ async def test_last_semantic_repair_preserves_assigned_npc_instead_of_forcing_pl
 
 @pytest.mark.parametrize(
     "unsafe",
-    ["（馆长把烟按灭）", "（放下手里的书）", "（手里的价签捏皱了一角）"],
+    [
+        "（馆长把烟按灭）",
+        "（放下手里的书）",
+        "（手里的价签捏皱了一角）",
+        "（放下手中的笔，目光停在访客脸上）",
+    ],
 )
 async def test_actor_repairs_unexecuted_prop_stage_direction_before_review(db, config, runtime, fake, unsafe):
     config.product = "roleplay"

@@ -7,7 +7,7 @@ from support.story import launch, persona
 
 from chatbot.agents import Agents
 from chatbot.api import create_app
-from chatbot.observations import record_data, visible_records
+from chatbot.observations import append_record, record_data, visible_records
 from chatbot.providers import ProviderError
 from chatbot.role_memory import RoleMemoryService
 from chatbot.runtime import StaleTask
@@ -854,6 +854,100 @@ async def test_invalid_pending_reference_has_one_bounded_repair(db, config, runt
             assert not s.scalar(
                 select(Message.id).where(Message.task_id == task.id, Message.role == "assistant")
             )
+
+
+@pytest.mark.parametrize("recovery", ["paraphrase", "unchanged_quote", "semantic_rejected"])
+async def test_history_quote_repair_feedback_does_not_approve_the_candidate(
+    db, config, runtime, fake, recovery
+):
+    config.product = "roleplay"
+    with TestClient(create_app(config, db, fake)) as client:
+        story, actors, player = launch(client)
+    source_text = "钥匙在柜中；只是转述，尚未核实。"
+    with db.session.begin() as s:
+        source_id = append_record(
+            s,
+            story_id=story,
+            kind="speech",
+            actor=s.get(Conversation, player),
+            text=source_text,
+            observer_ids=[player, actors[0]],
+            dedupe="history-source",
+        ).id
+    draft_text = "我保留的是“钥匙还在柜子里”这个说法，尚未核实。"
+    plain_text = "我保留的是你转述的钥匙在柜中的说法，尚未核实。"
+    calls = 0
+
+    def draft(messages):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            feedback = json.loads(
+                '{"rejected_candidate"' + messages[-1]["content"].split('{"rejected_candidate"', 1)[1]
+            )
+            assert feedback["invalid_entries"] == [{"code": "recalled_quote_mismatch"}]
+            assert feedback["invalid_history_quotes"] == ["钥匙还在柜子里"]
+            assert feedback["source_texts_for_repair"] == {
+                source_id: {"text": source_text, "excerpt_truncated": False}
+            }
+        body = draft_text if calls == 1 or recovery == "unchanged_quote" else plain_text
+        return {
+            "text": body,
+            "claims": [{"text": body, "source_id": source_id, "quote": source_text, "mode": "reported"}],
+        }
+
+    fake.replies["dialogue"] = draft
+    fake.replies["role_intent"] = intent(player)
+    if recovery == "semantic_rejected":
+        fake.replies["role_intent"] = lambda messages: (
+            {"purpose": "回应玩家关于保留疑问的请求"}
+            if messages[0]["content"].startswith("修复一名角色本次发言的目的")
+            else intent(player)
+        )
+        fake.replies["actor_review"] = {
+            "accepted": False,
+            "issues": ["拒绝这个候选"],
+            "checks": [
+                {
+                    "text": plain_text,
+                    "basis": "旧发言不确认内容为真。",
+                    "supported": False,
+                    "reason_code": "statement_promotion",
+                }
+            ],
+        }
+    runtime.submit(
+        player,
+        config.workspace_owner,
+        "关于这条说法，你愿意保留疑问吗？",
+        "quote-feedback",
+        channel="private",
+        addressees=[actors[0]],
+    )
+    task = runtime.claim("w")
+    if recovery == "paraphrase":
+        await Agents(db, config, runtime, fake).respond(task)
+    else:
+        with pytest.raises(ProviderError):
+            await Agents(db, config, runtime, fake).respond(task)
+    reviews = [call for call in fake.calls if call[0] == "actor_review"]
+    if recovery == "unchanged_quote":
+        assert calls == 2 and not reviews
+    else:
+        assert reviews
+    with db.session() as s:
+        speeches = list(
+            s.scalars(
+                select(SceneRecord).where(
+                    SceneRecord.task_id == task.id,
+                    SceneRecord.kind == "speech",
+                    SceneRecord.actor_id == actors[0],
+                )
+            )
+        )
+        assert bool(speeches) == (recovery == "paraphrase")
+        if speeches:
+            assert [row.text for row in speeches] == [plain_text]
 
 
 async def test_citation_retry_gets_only_authorized_text_and_records_codes(db, config, runtime, fake):

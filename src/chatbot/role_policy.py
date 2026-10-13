@@ -70,8 +70,8 @@ _STAGE_OBJECT_MUTATION = re.compile(
 )
 _STAGE_HELD_OBJECT_MUTATION = re.compile(
     r"(?:按灭|点燃|放下|拿起|拾起|捡起|递出|藏起|扔掉|撕毁|撕碎|捏皱|揉皱|打开|关上|合上)"
-    r"(?:了)?(?:自己)?手里(?:的)?([^，。；、]{1,12})"
-    r"|手里(?:的)?([^，。；、]{1,12}?)(?:被)?(?:捏皱|撕碎|揉皱|递出|扔掉)"
+    r"(?:了)?(?:自己)?手(?:里|中)(?:的)?([^，。；、]{1,12})"
+    r"|手(?:里|中)(?:的)?([^，。；、]{1,12}?)(?:被)?(?:捏皱|撕碎|揉皱|递出|扔掉)"
 )
 _BODY_EXPRESSION = re.compile(
     r"^(?:自己(?:的)?|他(?:的)?|她(?:的)?|一只|双)?"
@@ -203,16 +203,37 @@ def claim_issues(speech, sources, observations, question):
     return issues
 
 
-def citation_repair_sources(speech, sources, issues):
-    """Bounded excerpts from the same authorized map, only for broken quotations."""
+def citation_repair_sources(speech, sources, issues, question=""):
+    """Repeat bounded authorized excerpts for broken claim or history quotes.
+
+    History quotes need an exact, present claim connecting the rejected span
+    to its source. This supplies repair evidence, never quotation approval.
+    """
     result = {}
+    history_quotes = (
+        invalid_recalled_quotes(speech["text"], sources, question)
+        if any(issue["code"] == "recalled_quote_mismatch" for issue in issues)
+        else []
+    )
     for issue in issues:
-        if issue["code"] not in {"quote_empty", "quote_mismatch"}:
+        if issue["code"] in {"quote_empty", "quote_mismatch"}:
+            candidates = [speech["claims"][issue["claim_index"]]]
+        elif issue["code"] == "recalled_quote_mismatch":
+            candidates = [
+                claim
+                for claim in speech["claims"]
+                if claim["text"] in speech["text"]
+                and any(span in claim["text"] for span in history_quotes)
+                and claim["quote"].strip()
+                and claim["quote"] in sources.get(claim["source_id"], "")
+            ]
+        else:
             continue
-        source_id = speech["claims"][issue["claim_index"]]["source_id"]
-        if source_id in sources and source_id not in result and len(result) < 4:
-            text = sources[source_id]
-            result[source_id] = {"text": text[:4000], "excerpt_truncated": len(text) > 4000}
+        for claim in candidates:
+            source_id = claim["source_id"]
+            if source_id in sources and source_id not in result and len(result) < 4:
+                text = sources[source_id]
+                result[source_id] = {"text": text[:4000], "excerpt_truncated": len(text) > 4000}
     return result
 
 

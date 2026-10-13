@@ -128,6 +128,11 @@ async def serve(host, control, web, job, lifetime=120, online=False, game_packag
         ticket_used = True
         return HTMLResponse(
             "<!doctype html><meta charset='utf-8'><title>Loading</title><script>"
+            + "sessionStorage.setItem('sceneweaver-token',"
+            + json.dumps(token)
+            + ");"
+            # Studio uses the renamed key; shared preview audio and legacy Game
+            # clients still use the old key. Both are this same one-use instance.
             + "sessionStorage.setItem('continuum-token',"
             + json.dumps(token)
             + ");"

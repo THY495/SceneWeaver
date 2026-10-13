@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 
+from .memory_dependencies import memory_visible
 from .observability.usage import cache_reporting
 from .observations import perceive, record_data
 from .storage import (
@@ -280,10 +281,11 @@ def archive(s, sid, who):
                 "version": m.version,
                 "replaces_id": m.replaces_id,
                 "source_ids": m.source_ids,
+                "context_source_ids": m.context_source_ids,
                 "created_at": m.created_at,
             }
             for m in memories
-            if set(m.source_ids).issubset(observed[m.actor_id])
+            if memory_visible(m, observed[m.actor_id])
         ],
         "snapshots": [
             {

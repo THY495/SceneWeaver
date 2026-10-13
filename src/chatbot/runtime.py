@@ -733,6 +733,7 @@ class Runtime:
                 action_attempt.result_event_id = record.id
                 action_attempt.retry_at = now() + timedelta(seconds=30) if action_failed else None
             if intent.get("act") == "inspect" and intent.get("goal_id"):
+                from .memory_dependencies import memory_dependencies, memory_visible
                 from .storage import RoleMemory
 
                 goal = s.get(RoleMemory, intent["goal_id"])
@@ -742,6 +743,7 @@ class Runtime:
                     and goal.actor_id == actor.id
                     and goal.status == "active"
                     and goal.kind in {"goal", "commitment"}
+                    and memory_visible(goal, {e.id for e in visible_records(s, actor.id)})
                     and goal.content.startswith("查阅资料：")
                 ):
                     goal.status, goal.version = "completed", goal.version + 1
@@ -755,7 +757,8 @@ class Runtime:
                         task_id=task.id,
                         parent_id=record.id,
                         dedupe=f"complete:{goal.id}:{record.id}",
-                        payload={"memory_id": goal.id, "status": "completed"},
+                        payload={"memory_id": goal.id, "status": "completed",
+                                 "context_source_ids": sorted(memory_dependencies(goal))},
                     )
             from .observations import observed_record
 

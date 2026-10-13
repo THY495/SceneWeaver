@@ -3,6 +3,7 @@
 import asyncio
 import json
 import re
+from typing import Literal
 
 from ..context import ContextPressure
 from ..evidence import model_evidence, normalize_citations
@@ -12,6 +13,7 @@ from ..role_policy import (
     citation_repair_sources,
     claim_issues,
     director_handoff_leak,
+    invalid_recalled_quotes,
     needs_knowledge,
     semantic_review_marks,
     unexecuted_stage_object_action,
@@ -78,13 +80,19 @@ async def perform_actor(
     voice_service=None,
     voice: str = "",
     director_assignment: dict | None = None,
+    purpose_recovery_order: Literal["immediate", "after_local_repair"] = "immediate",
 ):
+    if purpose_recovery_order not in {"immediate", "after_local_repair"}:
+        raise ValueError("Unknown purpose recovery order")
     annotate(actor_id=actor.id, step=step, voice_candidate_enabled=voice_service is not None)
+    annotate(purpose_recovery_order=purpose_recovery_order)
     # Grounded response tasks have an actual utterance to address. Whole-part
     # deletion cannot prove the surviving mood/comment still fulfils that task.
     # Keep bounded repair plus full review rather than promoting this remainder.
-    grounded_response = bool((director_assignment or {}).get("response_utterance")
-        and (director_assignment or {}).get("response_turn_policy") in {"answer_only", "invite_player"})
+    grounded_response = bool(
+        (director_assignment or {}).get("response_utterance")
+        and (director_assignment or {}).get("response_turn_policy") in {"answer_only", "invite_player"}
+    )
     annotate(grounded_response_pruning_disabled=grounded_response)
     db, runtime = services.db, services.runtime
     while True:
@@ -469,6 +477,8 @@ async def perform_actor(
                     "claims.text必须逐字出现在最终台词text中；"
                     "quote必须逐字出现在对应来源。台词中用引号引用历史原话也必须逐字对应原始来源；"
                     "若只是概括就不要伪装成直接引文。speech来源只能证明曾经说过，"
+                    "invalid_history_quotes列出未逐字对应来源的正文引号片段。"
+                    "source_texts_for_repair只是已授权的候选修复依据，不表示已确认引号的归属或内容为真。"
                     "不能用mode=fact/action证明话中内容；转述使用reported并在台词明确归属。"
                     "玩家听闻不能变成你自己的听闻；你自己的旧说法也不能证明现在确实如此。"
                     "没有独立证据的事实应承认不知道，不重复断言。"
@@ -481,7 +491,14 @@ async def perform_actor(
                         {
                             "rejected_candidate": {"text": speech["text"], "claims": speech["claims"]},
                             "invalid_entries": invalid,
-                            "source_texts_for_repair": citation_repair_sources(speech, sources, invalid),
+                            "invalid_history_quotes": invalid_recalled_quotes(
+                                speech["text"], sources, task.payload.get("text", "")
+                            )
+                            if any(item["code"] == "recalled_quote_mismatch" for item in invalid)
+                            else [],
+                            "source_texts_for_repair": citation_repair_sources(
+                                speech, sources, invalid, task.payload.get("text", "")
+                            ),
                         },
                         ensure_ascii=False,
                     ),
@@ -501,17 +518,28 @@ async def perform_actor(
 
             from .response_review import BoundActorReview, enforce_binding, response_source
 
-            response_binding = bool(getattr(services.config, "role_response_review_binding", False)
-                and response_source(director_assignment) is not None)
+            response_binding = bool(
+                getattr(services.config, "role_response_review_binding", False)
+                and response_source(director_assignment) is not None
+            )
             messages = review_messages(
-                info, model_evidence(evidence), speech, sources, actor_id=actor.id, documents=evidence,
+                info,
+                model_evidence(evidence),
+                speech,
+                sources,
+                actor_id=actor.id,
+                documents=evidence,
                 intent=execution_intent(intent, recovered=purpose_recovery_used),
                 player_request=task.payload.get("text", "") if turn.player_id in known_ids else "",
-                cast=known_cast, director_assignment=director_assignment, response_binding=response_binding,
+                cast=known_cast,
+                director_assignment=director_assignment,
+                response_binding=response_binding,
             )
             # A verdict belongs to this exact candidate, grounding and review
             # contract. Restarting after a policy/context change cannot rebind it.
-            review_basis = hashlib.sha256(json.dumps(messages, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:24]
+            review_basis = hashlib.sha256(
+                json.dumps(messages, sort_keys=True, ensure_ascii=False).encode()
+            ).hexdigest()[:24]
             review = await services.provider.chat(
                 task.id,
                 "actor_review",
@@ -526,7 +554,8 @@ async def perform_actor(
             # Keep these rejections distinct from model factual judgments.
             provider_accepted = review["accepted"]
             provider_semantic_clean = bool(
-                review["accepted"] and not review.get("issues", [])
+                review["accepted"]
+                and not review.get("issues", [])
                 and all(check["supported"] for check in review.get("checks", []))
             )
             scheduling_issues = []
@@ -535,9 +564,13 @@ async def perform_actor(
                 raw_assessment = review.get("response_assessment")
                 assessment = raw_assessment if isinstance(raw_assessment, dict) else {}
                 status = assessment.get("status")
-                annotate(response_review_binding=True, response_binding_accepted=not response_issues,
-                         response_task_status=status if status in {
-                             "responded", "refused", "deferred", "unknown", "not_addressed"} else None)
+                annotate(
+                    response_review_binding=True,
+                    response_binding_accepted=not response_issues,
+                    response_task_status=status
+                    if status in {"responded", "refused", "deferred", "unknown", "not_addressed"}
+                    else None,
+                )
                 if response_issues:
                     scheduling_issues.extend(response_issues)
             from .dialogue_capacity import unavailable_npc_request
@@ -608,8 +641,12 @@ async def perform_actor(
                             "该接收者本轮已有待答问题；本片段请自然回应，不再向其提出新的待答请求。",
                         ],
                     }
-            return {**review, "provider_accepted": provider_accepted,
-                    "provider_semantic_clean": provider_semantic_clean, "scheduling_issues": scheduling_issues}
+            return {
+                **review,
+                "provider_accepted": provider_accepted,
+                "provider_semantic_clean": provider_semantic_clean,
+                "scheduling_issues": scheduling_issues,
+            }
 
         if voice_service is None:
             review = await review_call()
@@ -670,12 +707,20 @@ async def perform_actor(
                 review_unsupported_count=sum(not check["supported"] for check in review.get("checks", [])),
             )
             assessment = review.get("response_assessment")
-            if getattr(services.config, "role_response_review_binding", False) and isinstance(assessment, dict):
+            if getattr(services.config, "role_response_review_binding", False) and isinstance(
+                assessment, dict
+            ):
                 status = assessment.get("status")
-                annotate(response_review_binding=True, response_binding_accepted=not any(
-                    code.startswith("response_binding_") or code == "response_task_not_addressed"
-                    for code in review["scheduling_issues"]), response_task_status=status if status in {
-                        "responded", "refused", "deferred", "unknown", "not_addressed"} else None)
+                annotate(
+                    response_review_binding=True,
+                    response_binding_accepted=not any(
+                        code.startswith("response_binding_") or code == "response_task_not_addressed"
+                        for code in review["scheduling_issues"]
+                    ),
+                    response_task_status=status
+                    if status in {"responded", "refused", "deferred", "unknown", "not_addressed"}
+                    else None,
+                )
             for code in sorted(semantic_review_marks(review)):
                 validation.mark(code)
             for code in review["scheduling_issues"]:
@@ -721,7 +766,17 @@ async def perform_actor(
             raise UnsafeDraftExhausted("NPC回答仍有无依据的剧情细节，此片段未提交；此前已显示的发言保留。")
         semantic_repairs += 1
         rejected_checks = unsupported_candidate_checks(review, speech)
-        if director_assignment is None and rejected_checks and not purpose_recovery_used:
+        purpose_recovery_eligible = (
+            director_assignment is None and rejected_checks and not purpose_recovery_used
+        )
+        if (
+            purpose_recovery_eligible
+            and purpose_recovery_order == "after_local_repair"
+            and semantic_repairs == 1
+        ):
+            with measure("npc.purpose_recovery_deferred") as recovery:
+                recovery.mark("local_repair_first")
+        if purpose_recovery_eligible and (purpose_recovery_order == "immediate" or semantic_repairs >= 2):
             purpose_recovery_used = True
             with measure("npc.purpose_recovery") as recovery:
                 recovery.mark("unsupported_candidate_fact")

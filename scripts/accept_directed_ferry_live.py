@@ -8,6 +8,7 @@ import argparse
 import asyncio
 import json
 import os
+import sys
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -24,6 +25,21 @@ from chatbot.runtime import Runtime
 from chatbot.storage import Conversation, Database, Operation, SceneRecord, Task, Usage
 from chatbot.story_blueprints import Recipe
 from chatbot.worker import Worker
+
+if __package__:
+    from .acceptance_scope import (
+        execution_identity,
+        ledger,
+        reserve_acceptance_budget,
+        settle_acceptance_budget,
+    )
+else:
+    from acceptance_scope import (
+        execution_identity,
+        ledger,
+        reserve_acceptance_budget,
+        settle_acceptance_budget,
+    )
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "examples/stories/ferry.story.json"
@@ -79,6 +95,7 @@ async def run(config, db, output):
         "scope": "Approved synthetic ferry derivative with authored three-NPC direction; official DeepSeek; source API/Worker; no browser or TTS",
         "message": MESSAGE,
         "fixture": {"source": str(SOURCE.relative_to(ROOT)), "node": "opening", "max_segments": 5},
+        **execution_identity(config),
     }
     try:
         with TestClient(create_app(config, db, api_provider)) as client:
@@ -289,6 +306,7 @@ def main():
     parser.add_argument(
         "--validate-fixture", action="store_true", help="Check the derivative without model calls"
     )
+    parser.add_argument("--require-default-execution", action="store_true")
     args = parser.parse_args()
     recipe = directed_recipe()
     if args.validate_fixture:
@@ -317,7 +335,27 @@ def main():
         base + "/postgres", isolation_level="AUTOCOMMIT", connect_args={"connect_timeout": 5}
     )
     db = None
+    budget_db = None
+    budget_usage = None
+    preserve_database = False
     created = False
+    accounting_phase = 'not_started'
+    budget_status = 'not_attempted'
+
+    def record_pending(reason):
+        original_error = sys.exception()
+        try:
+            output.with_name(output.stem + "-cleanup-pending.json").write_text(json.dumps({
+                "database_name": database_name, "reason": reason,
+                "accounting_phase": accounting_phase, "project_budget_status": budget_status,
+                "project_budget_reservation": budget_usage,
+            }, indent=2), "utf-8")
+        except Exception:
+            if original_error is None:
+                raise
+            # A secondary receipt error must not hide the accounting/cleanup failure.
+            original_error.add_note('Cleanup-pending receipt could not be persisted; owned database retained.')
+
     try:
         with admin.connect() as conn:
             conn.execute(text(f'CREATE DATABASE "{database_name}"'))
@@ -335,8 +373,11 @@ def main():
                 "openrouter_roles": {},
             }
         )
+        execution_identity(config, require_defaults=args.require_default_execution)
         db = Database(config)
         db.initialize()
+        budget_db = Database(origin)
+        budget_usage = reserve_acceptance_budget(budget_db, origin, 0.3)
         if os.name == "nt":
             asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
         report = asyncio.run(run(config, db, output))
@@ -352,15 +393,45 @@ def main():
         )
         if not report.get("passed"):
             raise SystemExit(1)
-        if not report.get("passed"):
-            raise SystemExit(1)
     finally:
-        if db:
-            db.close()
-        if created:
-            with admin.connect() as conn:
-                conn.execute(text(f'DROP DATABASE "{database_name}" WITH (FORCE)'))
-        admin.dispose()
+        try:
+            if db is not None and budget_usage is not None:
+                preserve_database = True
+                accounting_phase = 'ledger'
+                final_ledger = ledger(db, 0.3)
+                accounting_phase = 'ledger_receipt'
+                output.with_name(output.stem + "-ledger.json").write_text(
+                    json.dumps(final_ledger, ensure_ascii=False, indent=2), "utf-8"
+                )
+                conservative_cost = final_ledger["cost_usd"] + final_ledger["reserved_usd"]
+                accounting_phase = 'settlement'
+                budget_status = 'unknown'
+                settle_acceptance_budget(budget_db, budget_usage, conservative_cost)
+                budget_status = 'completed'
+                accounting_phase = 'budget_receipt'
+                output.with_name(output.stem + "-project-budget.json").write_text(json.dumps({
+                    "usage_id": budget_usage, "reserved_cap_usd": 0.3,
+                    "conservative_cost_usd": conservative_cost, "remaining_reservation_usd": 0,
+                }, indent=2), "utf-8")
+                accounting_phase = 'completed'
+                preserve_database = False
+        finally:
+            if db:
+                db.close()
+            if budget_db:
+                budget_db.close()
+            try:
+                if created and not preserve_database:
+                    try:
+                        with admin.connect() as conn:
+                            conn.execute(text(f'DROP DATABASE "{database_name}"'))
+                    except Exception:
+                        record_pending('Normal database cleanup failed; preserve the owned database without forcing.')
+                        raise
+                elif created:
+                    record_pending('Acceptance accounting did not finish; preserve evidence and verify budget status.')
+            finally:
+                admin.dispose()
 
 
 if __name__ == "__main__":
