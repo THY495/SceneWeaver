@@ -1,7 +1,7 @@
 {
   "version": "0.1.0-alpha.3",
   "scope": "roleplay-source-only",
-  "source": "internal current-development verification candidate; not published; version candidate pending CI and release decision; no source Git history",
+  "source": "Sceneweaver source test release; curated standalone snapshot; no source Git history",
   "files": {
     ".dockerignore": "f9117eb10b2a11c3395fde8cea0ef371dd6eab2904936ad32f78813c59182b76",
     ".env.example": "1d79e511d130bc3aededaf035762edaf9940cd9cf06acbacbf8ae0270b1a1cd4",
@@ -9,11 +9,11 @@
     ".github/ISSUE_TEMPLATE/bug_report.yml": "aac8e082feec76a17998cf7abfa58d6c89f1d103dd3f27e3d3fcf9c9fae432a1",
     ".github/workflows/source-ci.yml": "133fdfca6d40c2c0821eed7a5d6fddc365ba889e618d32661b235869fd1ab099",
     ".gitignore": "1c51ba327d9795db94db4c98a623313d9dd6ba039c0038580e52e8c3e8d2cc5f",
-    "CHANGELOG.md": "b06d0bbb01ea7fe8e7f368a37dcd3f1b4ba3ae394678516bdfdae3fbbe50b11f",
+    "CHANGELOG.md": "6ad0ec41962bf3cf9b1a2f27f1f20957aebb8c91d83549e486dedfa14abe997a",
     "CONTENT_LICENSE.md": "115abb83c5137955d800c3c06d03fd13d8c23a16fffbfb08a271396b8007f8ab",
     "Dockerfile": "8dbe25f9d517dfdc8c851c3f782f62ce2e5a1e8a1fc27a6e8bcc03d0409b1154",
     "LICENSE": "8adf7eacbfe64307d5759abf1071ff9a5dc659f12baa5fc1db8146d337780d54",
-    "README.md": "98f7a763c48414c32a04485af8832196ad842cbeb85b5c6b4577665b9923d675",
+    "README.md": "5392880285a73b31a8cbcd54c8869152a862f51286e1f3c45ee50be6693e07e1",
     "alembic.ini": "7532ac32eec15df4a5476ed7aafe3396d51d4538f89b37fe22a8c05da370935f",
     "apps/web/.prettierrc.json": "a0b858680dd9b10c3adf0686ffeb02bd839b78299dd9a59cd28ff2c0193a5d36",
     "apps/web/game.html": "aeb1008fc0211c27e46316db501094996a810792d011cb9f058a5ba3e78769e1",
